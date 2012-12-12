@@ -910,7 +910,7 @@ static int identify(block_dev_desc_t *dev_desc)
 
     int device;
     device=dev_desc->dev;
-    printf ("  Device %d: ", device);
+    printf ("SATA device %d: ", device);
 
     for ( i=0; i < ATA_SECTORWORDS; ++i) {
         iobuf[i] = 0;
@@ -918,13 +918,10 @@ static int identify(block_dev_desc_t *dev_desc)
     
     ide_led (DEVICE_LED(device), 1);	/* LED on	*/
     /* Select device */
-printf("ide outb select device\n");
     ide_outb (device, ATA_DEV_HD, ATA_LBA | ATA_DEVICE(device));
     /* Start Ident Command */
-printf("ide outb ident commant\n");
     ide_outb (device, ATA_COMMAND, ATA_CMD_IDENT);
     /* Wait for completion */
-printf("ide wait\n");
     c = ide_wait (device, IDE_TIME_OUT);
     ide_led (DEVICE_LED(device), 0);	/* LED off	*/
 
@@ -985,6 +982,8 @@ printf("ide wait\n");
 	dev_desc->blksz=ATA_BLOCKSIZE;
 	dev_desc->lun=0; /* just to fill something in... */
 
+	dev_print(dev_desc);
+
 	return 0;
 }
 
@@ -1005,7 +1004,7 @@ ulong sata_read (int device, ulong blknr, lbaint_t blkcnt, void *buffer)
 		lba48 = 1;
 	}
 #endif
-	printf ("sata_read dev %d start %lX, blocks %llX buffer at %lX\n",
+	debug("sata_read dev %d start %lX, blocks %llX buffer at %lX\n",
 		device, blknr, blkcnt, (ulong)buffer);
 
 	ide_led (DEVICE_LED(device), 1);	/* LED on	*/
@@ -1032,10 +1031,10 @@ ulong sata_read (int device, ulong blknr, lbaint_t blkcnt, void *buffer)
 		goto IDE_READ_E;
 	}
 	if ((c & ATA_STAT_ERR) == ATA_STAT_ERR) {
-		printf ("No Powersaving mode %X\n", c);
+		debug("No Powersaving mode %X\n", c);
 	} else {
 		c = ide_inb(device,ATA_SECT_CNT);
-		printf("Powersaving %02X\n",c);
+		debug("Powersaving %02X\n",c);
 		if(c==0)
 			pwrsave=1;
 	}
@@ -1277,7 +1276,6 @@ int scan_sata (int dev)
 	    return 1;
 	}
 
-printf("disk present for dev %d\n", dev);
 	disk_present[dev] = 1;
     }
 
@@ -1295,12 +1293,10 @@ printf("disk present for dev %d\n", dev);
     if (!good)
 	return 1;
 
-printf("calling identify\n");
     if (identify(&sata_dev_desc[dev])) {
 	printf("Failed to get info for device %d\n", dev);
 	return 1;
     }
-printf("called identify\n");
     return 0;	/* success! */
 }
 
