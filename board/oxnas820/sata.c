@@ -1,4 +1,7 @@
 #include <common.h>
+
+#ifdef CONFIG_SATA
+
 #include <asm/arch-oxnas820/regs.h>
 #include <asm/io.h>
 #include <asm/byteorder.h>
@@ -6,12 +9,9 @@
 #include <ata.h>
 #include <libata.h>
 
-#ifdef CONFIG_SATA
-
 #define ide_led(x, y) {}
 
 extern block_dev_desc_t sata_dev_desc[CONFIG_SYS_SATA_MAX_DEVICE];
-
 
 #define SATA_DMA_CHANNEL 0
 #define IDE_TIME_OUT	2000	/* 2 sec timeout */
@@ -63,6 +63,12 @@ extern block_dev_desc_t sata_dev_desc[CONFIG_SYS_SATA_MAX_DEVICE];
 #define DMA_BYTE_CNT_BURST_MASK  (1 << 28)
 
 #define MAKE_FIELD(value, num_bits, bit_num) (((value) & ((1 << (num_bits)) - 1)) << (bit_num))
+
+#define OXNAS_MAX_SATA_DEVS	2
+
+#if (CONFIG_SYS_SATA_MAX_DEVICE > OXNAS_MAX_SATA_DEVS)
+#error Can only currently support 2 SATA devices
+#endif
 
 typedef enum oxnas_dma_mode {
     OXNAS_DMA_MODE_FIXED,
@@ -135,16 +141,16 @@ static const int MAX_SRC_WRITE_LOOPS = 10000;   /* 0.1 second in units of 10uS *
 static const int MAX_NOT_BUSY_LOOPS  = 10000;   /* 1 second in units of 100uS */
 
 /* The internal SATA drive on which we should attempt to find partitions */
-static volatile u32* sata_regs_base[2] = 
+static volatile u32 *sata_regs_base[OXNAS_MAX_SATA_DEVS] = 
 {
-    (volatile u32*)SATA_0_REGS_BASE,
-    (volatile u32*)SATA_1_REGS_BASE,
-    
+    (volatile u32 *)SATA_0_REGS_BASE,
+    (volatile u32 *)SATA_1_REGS_BASE,
 };
-static u32 wr_sata_orb1[2] = { 0, 0 };
-static u32 wr_sata_orb2[2] = { 0, 0 };
-static u32 wr_sata_orb3[2] = { 0, 0 };
-static u32 wr_sata_orb4[2] = { 0, 0 };
+
+static u32 wr_sata_orb1[OXNAS_MAX_SATA_DEVS] = { 0, 0 };
+static u32 wr_sata_orb2[OXNAS_MAX_SATA_DEVS] = { 0, 0 };
+static u32 wr_sata_orb3[OXNAS_MAX_SATA_DEVS] = { 0, 0 };
+static u32 wr_sata_orb4[OXNAS_MAX_SATA_DEVS] = { 0, 0 };
 
 static oxnas_dma_device_settings_t oxnas_sata_dma_settings = {
     .address_              = SATA_DATA_BASE_PA,
@@ -161,7 +167,7 @@ static oxnas_dma_device_settings_t oxnas_sata_dma_settings = {
     .address_really_fixed_ = 0
 };
 
-oxnas_dma_device_settings_t oxnas_ram_dma_settings = {
+static oxnas_dma_device_settings_t oxnas_ram_dma_settings = {
     .address_              = 0,
     .fifo_size_            = 0,
     .dreq_                 = OXNAS_DMA_DREQ_MEMORY,
@@ -184,23 +190,20 @@ static void xfer_wr_shadow_to_orbs(int device)
     *(sata_regs_base[device] + SATA_ORB4_OFF) = wr_sata_orb4[device];
 }
 
-static inline void device_select(int device)
-{
-    /* master/slave has no meaning to SATA core */
-}
-
+/*
+ * technically, this should be in private data, but I don't feel like
+ * refactoring all the references to it. Same for wr_sata_orb[1-4].
+ */
 static int disk_present[CONFIG_SYS_SATA_MAX_DEVICE];
 
-unsigned char oxnas_sata_inb(int device, int port)
+static unsigned char oxnas_sata_inb(int device, int port)
 {
     unsigned char val = 0;
 
-    /* Only permit accesses to disks found to be present during ide_preinit() */
+    /* Only permit accesses to disks found to be present during init */
     if (!disk_present[device]) {
         return ATA_STAT_FAULT;
     }
-
-    device_select(device);
 
     switch (port) {
         case ATA_PORT_CTL:
@@ -293,7 +296,7 @@ static inline int wait_sata_command_not_busy(int device)
     return status;
 }
 
-void oxnas_sata_outb(int device, int port, unsigned char val)
+static void oxnas_sata_outb(int device, int port, unsigned char val)
 {
     typedef enum send_method {
         SEND_NONE,
@@ -302,14 +305,12 @@ void oxnas_sata_outb(int device, int port, unsigned char val)
         SEND_CTL,
     } send_method_t;
 
-    /* Only permit accesses to disks found to be present during ide_preinit() */
+    /* Only permit accesses to disks found to be present during init() */
     if (!disk_present[device]) {
         return;
     }
     
-//    printf("outb: %d:%01x <= %02x\n", device, port, val);
-
-    device_select(device);
+    // printf("outb: %d:%01x <= %02x\n", device, port, val);
 
     send_method_t send_regs = SEND_NONE;
     switch (port) {
@@ -645,15 +646,12 @@ static unsigned int wait_not_busy(int device, unsigned long timeout_secs)
     return busy;
 }
 
-void oxnas_sata_output_data(int device, ulong *sect_buf, int words)
+static void oxnas_sata_output_data(int device, ulong *sect_buf, int words)
 {
-    /* Only permit accesses to disks found to be present during ide_preinit() */
+    /* Only permit accesses to disks found to be present during init() */
     if (!disk_present[device]) {
         return;
     }
-
-    /* Select the required internal SATA drive */
-    device_select(device);
 
     /* Start the DMA channel sending data from the passed buffer to the SATA core */
     dma_start_write(sect_buf, words << 2);
@@ -676,15 +674,12 @@ void oxnas_sata_output_data(int device, ulong *sect_buf, int words)
 	}
 }
 
-void oxnas_sata_input_data(int device, ulong *sect_buf, int words)
+static void oxnas_sata_input_data(int device, ulong *sect_buf, int words)
 {
-    /* Only permit accesses to disks found to be present during ide_preinit() */
+    /* Only permit accesses to disks found to be present during init() */
     if (!disk_present[device]) {
         return;
     }
-
-    /* Select the required internal SATA drive */
-    device_select(device);
 
     /* Start the DMA channel receiving data from the SATA core into the passed buffer */
     dma_start_read(sect_buf, words << 2);
@@ -746,6 +741,7 @@ static void scr_write(int device, unsigned int sc_reg, u32 val)
         printf("scr_write() Timed out of wait for write completion\n");
     }
 }
+
 extern void workaround5458(void);
 extern void EnableSATAPhy(void);
 
@@ -808,107 +804,6 @@ static int wait_FIS(int device)
     } while (++loops < FIS_LOOP_COUNT);
 
     return status;
-}
-
-int ide_preinit(void)
-{
-    int num_disks_found = 0;
-
-    /* Initialise records of which disks are present to all present */
-    int i;
-    for (i=0; i < CONFIG_SYS_SATA_MAX_DEVICE; i++) {
-        disk_present[i] = 1;
-    }
-    
-    /* Block reset SATA and DMA cores */
-    *(volatile u32*)SYS_CTRL_RSTEN_SET_CTRL = (1UL << SYS_CTRL_RSTEN_SATA_BIT) |
-                                              (1UL << SYS_CTRL_RSTEN_SATA_LINK_BIT) |
-                                              (1UL << SYS_CTRL_RSTEN_SATA_PHY_BIT) |
-                                              (1UL << SYS_CTRL_RSTEN_SGDMA_BIT);
-
-    /* Enable clocks to SATA and DMA cores */
-    *(volatile u32*)SYS_CTRL_CKEN_SET_CTRL = (1UL << SYS_CTRL_CKEN_SATA_BIT);
-    *(volatile u32*)SYS_CTRL_CKEN_SET_CTRL = (1UL << SYS_CTRL_CKEN_DMA_BIT);
-    
-    udelay(5000);
-    *(volatile u32*)SYS_CTRL_RSTEN_CLR_CTRL = (1UL << SYS_CTRL_RSTEN_SATA_PHY_BIT);
-    udelay(50);
-    *(volatile u32*)SYS_CTRL_RSTEN_CLR_CTRL = (1UL << SYS_CTRL_RSTEN_SATA_LINK_BIT) |
-                                              (1UL << SYS_CTRL_RSTEN_SATA_BIT);
-    udelay(50);
-    *(volatile u32*)SYS_CTRL_RSTEN_CLR_CTRL = (1UL << SYS_CTRL_RSTEN_SGDMA_BIT);
-    udelay(100);
-    /* Apply the Synopsis SATA PHY workarounds */
-    EnableSATAPhy();
-    udelay(10000);
-
-    /* disable and clear core interrupts */
-    *((unsigned long*)SATA_HOST_REGS_BASE + SATA_INT_ENABLE_CLR_OFF) = ~0UL;
-    *((unsigned long*)SATA_HOST_REGS_BASE + SATA_INT_CLR_OFF) = ~0UL;
-
-    int device;
-    for (device = 0; device < CONFIG_SYS_SATA_MAX_DEVICE; device++) {
-        int found = 0;
-        int retries = 1;
-
-        /* Disable SATA interrupts */
-        *(sata_regs_base[device] + SATA_INT_ENABLE_CLR_OFF) = ~0UL;
-
-        /* Clear any pending SATA interrupts */
-        *(sata_regs_base[device] + SATA_INT_CLR_OFF) = ~0UL;
-
-        do {
-            /* clear sector count register for FIS detection */
-            oxnas_sata_outb(device, ATA_PORT_NSECT, 0);
-    
-            /* Get the PHY working */
-            if (!phy_reset(device)) {
-                printf("SATA PHY not ready for device %d\n", device);
-                break;
-            }
-
-            if (!wait_FIS(device)) {
-                printf("No FIS received from device %d\n", device);
-            } else {
-                if ((scr_read(device, SATA_SCR_STATUS) & 0xf) == 0x3) {
-                    if (wait_not_busy(device, 30)) {
-                        printf("Timed out of wait for SATA device %d to have BUSY clear\n", device);
-                    } else {
-                        ++num_disks_found;
-                        found = 1;
-                    }
-                } else {
-                    printf("No SATA device %d found, PHY status = 0x%08x\n",
-                            device, scr_read(device, SATA_SCR_STATUS));
-                }
-                break;
-            }
-        } while (retries--) ;
-
-        /* Record whether disk is present, so won't attempt to access it later */
-        disk_present[device] = found;
-    }
-
-    /* post disk detection clean-up */
-    for (device = 0; device < CONFIG_SYS_SATA_MAX_DEVICE; device++) {
-        if ( disk_present[device] ) {
-            /* set as ata-5 (28-bit) */
-            *(sata_regs_base[device] + SATA_DRIVE_CONTROL_OFF) = 0UL;
-            
-            /* clear phy/link errors */
-            scr_write(device, SATA_SCR_ERROR, ~0);
-            
-            /* clear host errors */
-            *(sata_regs_base[device] + SATA_CONTROL_OFF) |= SATA_SCTL_CLR_ERR;
-            
-            /* clear interrupt register as this clears the error bit in the IDE 
-            status register */
-            *(sata_regs_base[device] + SATA_INT_CLR_OFF) = ~0UL;
-        }
-    }    
-    
-
-    return !num_disks_found;
 }
 
 static void __inline__ ide_outb(int dev, int port, unsigned char val)
@@ -1006,100 +901,41 @@ static uchar ide_wait (int dev, ulong t)
 	return (c);
 }
 
-
-static void ide_ident (block_dev_desc_t *dev_desc)
+static int identify(block_dev_desc_t *dev_desc)
 {
-	ulong iobuf[ATA_SECTORWORDS];
-	unsigned char c;
+    ulong iobuf[ATA_SECTORWORDS];
+    unsigned char c;
     unsigned int i;
-	hd_driveid_t *iop = (hd_driveid_t *)iobuf;
+    hd_driveid_t *iop = (hd_driveid_t *)iobuf;
 
-#ifdef CONFIG_ATAPI
-	int retries = 0;
-	int do_retry = 0;
-#endif
-
-	int device;
-	device=dev_desc->dev;
-	printf ("  Device %d: ", device);
+    int device;
+    device=dev_desc->dev;
+    printf ("  Device %d: ", device);
 
     for ( i=0; i < ATA_SECTORWORDS; ++i) {
         iobuf[i] = 0;
     }
     
-	ide_led (DEVICE_LED(device), 1);	/* LED on	*/
-	/* Select device
-	 */
-	ide_outb (device, ATA_DEV_HD, ATA_LBA | ATA_DEVICE(device));
-	dev_desc->if_type=IF_TYPE_IDE;
-#ifdef CONFIG_ATAPI
+    ide_led (DEVICE_LED(device), 1);	/* LED on	*/
+    /* Select device */
+printf("ide outb select device\n");
+    ide_outb (device, ATA_DEV_HD, ATA_LBA | ATA_DEVICE(device));
+    /* Start Ident Command */
+printf("ide outb ident commant\n");
+    ide_outb (device, ATA_COMMAND, ATA_CMD_IDENT);
+    /* Wait for completion */
+printf("ide wait\n");
+    c = ide_wait (device, IDE_TIME_OUT);
+    ide_led (DEVICE_LED(device), 0);	/* LED off	*/
 
-    do_retry = 0;
-    retries = 0;
+    if (((c & ATA_STAT_DRQ) == 0) || ((c & (ATA_STAT_FAULT|ATA_STAT_ERR)) != 0) ) {
+	return 1;
+    }
 
-    /* Warning: This will be tricky to read */
-    while (retries <= 1) {
-	/* check signature */
-	if ((ide_inb(device,ATA_SECT_CNT) == 0x01) &&
-		 (ide_inb(device,ATA_SECT_NUM) == 0x01) &&
-		 (ide_inb(device,ATA_CYL_LOW)  == 0x14) &&
-		 (ide_inb(device,ATA_CYL_HIGH) == 0xEB)) {
-		/* ATAPI Signature found */
-		dev_desc->if_type=IF_TYPE_ATAPI;
-		/* Start Ident Command
-		 */
-		ide_outb (device, ATA_COMMAND, ATAPI_CMD_IDENT);
-		/*
-		 * Wait for completion - ATAPI devices need more time
-		 * to become ready
-		 */
-		c = ide_wait (device, ATAPI_TIME_OUT);
-	} else
-#endif
-	{
-		/* Start Ident Command
-		 */
-		ide_outb (device, ATA_COMMAND, ATA_CMD_IDENT);
-
-		/* Wait for completion
-		 */
-		c = ide_wait (device, IDE_TIME_OUT);
-	}
-	ide_led (DEVICE_LED(device), 0);	/* LED off	*/
-
-	if (((c & ATA_STAT_DRQ) == 0) ||
-	    ((c & (ATA_STAT_FAULT|ATA_STAT_ERR)) != 0) ) {
-#ifdef CONFIG_ATAPI
-			{
-				/* Need to soft reset the device in case it's an ATAPI...  */
-				printf("Retrying...\n");
-				ide_outb (device, ATA_DEV_HD, ATA_LBA | ATA_DEVICE(device));
-				udelay(100000);
-				ide_outb (device, ATA_COMMAND, 0x08);
-				udelay (500000);	/* 500 ms */
-			}
-		/* Select device
-		 */
-		ide_outb (device, ATA_DEV_HD, ATA_LBA | ATA_DEVICE(device));
-		retries++;
-#else
-		return;
-#endif
-	}
-#ifdef CONFIG_ATAPI
-	else
-		break;
-    }	/* see above - ugly to read */
-
-	if (retries == 2) /* Not found */
-		return;
-#endif
-
-	input_swap_data (device, iobuf, ATA_SECTORWORDS);
-
-	ident_cpy((unsigned char*)dev_desc->revision, iop->fw_rev, sizeof(dev_desc->revision));
-	ident_cpy((unsigned char*)dev_desc->vendor, iop->model, sizeof(dev_desc->vendor));
-	ident_cpy((unsigned char*)dev_desc->product, iop->serial_no, sizeof(dev_desc->product));
+    input_swap_data (device, iobuf, ATA_SECTORWORDS);
+    ident_cpy((unsigned char*)dev_desc->revision, iop->fw_rev, sizeof(dev_desc->revision));
+    ident_cpy((unsigned char*)dev_desc->vendor, iop->model, sizeof(dev_desc->vendor));
+    ident_cpy((unsigned char*)dev_desc->product, iop->serial_no, sizeof(dev_desc->product));
 
 #ifdef __LITTLE_ENDIAN
 	/*
@@ -1120,13 +956,6 @@ static void ide_ident (block_dev_desc_t *dev_desc)
 	else
 		dev_desc->removable = 0;
 
-#ifdef CONFIG_ATAPI
-	if (dev_desc->if_type==IF_TYPE_ATAPI) {
-		atapi_inquiry(dev_desc);
-		return;
-	}
-#endif /* CONFIG_ATAPI */
-
 #ifdef __BIG_ENDIAN
 	/* swap shorts */
 	dev_desc->lba = (iop->lba_capacity << 16) | (iop->lba_capacity >> 16);
@@ -1144,20 +973,26 @@ static void ide_ident (block_dev_desc_t *dev_desc)
 	if (iop->command_set_2 & 0x0400) { /* LBA 48 support */
 		dev_desc->lba48 = 1;
 		dev_desc->lba = (unsigned long long)iop->lba48_capacity[0] |
-						  ((unsigned long long)iop->lba48_capacity[1] << 16) |
-						  ((unsigned long long)iop->lba48_capacity[2] << 32) |
-						  ((unsigned long long)iop->lba48_capacity[3] << 48);
+			  ((unsigned long long)iop->lba48_capacity[1] << 16) |
+			  ((unsigned long long)iop->lba48_capacity[2] << 32) |
+			  ((unsigned long long)iop->lba48_capacity[3] << 48);
 	} else {
 		dev_desc->lba48 = 0;
 	}
 #endif /* CONFIG_LBA48 */
 	/* assuming HD */
-	dev_desc->type=DEV_TYPE_HARDDISK;
+	dev_desc->type = DEV_TYPE_HARDDISK;
 	dev_desc->blksz=ATA_BLOCKSIZE;
 	dev_desc->lun=0; /* just to fill something in... */
+
+	return 0;
 }
 
+#if 0
 ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
+#else
+ulong sata_read (int device, ulong blknr, lbaint_t blkcnt, void *buffer)
+#endif
 {
 	ulong n = 0;
 	unsigned char c;
@@ -1170,7 +1005,7 @@ ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 		lba48 = 1;
 	}
 #endif
-	printf ("ide_read dev %d start %qX, blocks %lX buffer at %lX\n",
+	printf ("sata_read dev %d start %lX, blocks %llX buffer at %lX\n",
 		device, blknr, blkcnt, (ulong)buffer);
 
 	ide_led (DEVICE_LED(device), 1);	/* LED on	*/
@@ -1181,7 +1016,7 @@ ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 	c = ide_wait (device, IDE_TIME_OUT);
 
 	if (c & ATA_STAT_BUSY) {
-		printf ("IDE read: device %d not ready\n", device);
+		printf ("SATA read: device %d not ready\n", device);
 		goto IDE_READ_E;
 	}
 
@@ -1193,7 +1028,7 @@ ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 	c = ide_wait (device, IDE_TIME_OUT);	/* can't take over 500 ms */
 
 	if (c & ATA_STAT_BUSY) {
-		printf ("IDE read: device %d not ready\n", device);
+		printf ("SATA read: device %d not ready\n", device);
 		goto IDE_READ_E;
 	}
 	if ((c & ATA_STAT_ERR) == ATA_STAT_ERR) {
@@ -1211,7 +1046,7 @@ ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 		c = ide_wait (device, IDE_TIME_OUT);
 
 		if (c & ATA_STAT_BUSY) {
-			printf ("IDE read: device %d not ready\n", device);
+			printf ("SATA read: device %d not ready\n", device);
 			break;
 		}
 #ifdef CONFIG_LBA48
@@ -1253,7 +1088,7 @@ ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 
 		if ((c&(ATA_STAT_DRQ|ATA_STAT_BUSY|ATA_STAT_ERR)) != ATA_STAT_DRQ) {
 #if defined(CONFIG_SYS_64BIT_LBA)
-			printf ("Error (no IRQ) dev %d blk %qd: status 0x%02x\n",
+			printf ("Error (no IRQ) dev %d blk %ld: status 0x%02x\n",
 				device, blknr, c);
 #else
 			printf ("Error (no IRQ) dev %d blk %ld: status 0x%02x\n",
@@ -1267,7 +1102,7 @@ ulong sata_read (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 
 		++n;
 		++blknr;
-		buffer += ATA_SECTORWORDS;
+		buffer += ATA_SECTORWORDS << 2;
 	}
 IDE_READ_E:
 	ide_led (DEVICE_LED(device), 0);	/* LED off	*/
@@ -1276,8 +1111,11 @@ IDE_READ_E:
 
 /* ------------------------------------------------------------------------- */
 
-
+#if 0
 ulong sata_write (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
+#else
+ulong sata_write (int device, ulong blknr, lbaint_t blkcnt, void *buffer)
+#endif
 {
 	ulong n = 0;
 	unsigned char c;
@@ -1301,7 +1139,7 @@ ulong sata_write (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 		c = ide_wait (device, IDE_TIME_OUT);
 
 		if (c & ATA_STAT_BUSY) {
-			printf ("IDE read: device %d not ready\n", device);
+			printf ("SATA write: device %d not ready\n", device);
 			goto WR_OUT;
 		}
 #ifdef CONFIG_LBA48
@@ -1338,7 +1176,7 @@ ulong sata_write (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 
 		if ((c&(ATA_STAT_DRQ|ATA_STAT_BUSY|ATA_STAT_ERR)) != ATA_STAT_DRQ) {
 #if defined(CONFIG_SYS_64BIT_LBA)
-			printf ("Error (no IRQ) dev %d blk %qd: status 0x%02x\n",
+			printf ("Error (no IRQ) dev %d blk %lld: status 0x%02x\n",
 				device, blknr, c);
 #else
 			printf ("Error (no IRQ) dev %d blk %ld: status 0x%02x\n",
@@ -1351,83 +1189,119 @@ ulong sata_write (int device, lbaint_t blknr, ulong blkcnt, ulong *buffer)
 		c = ide_inb (device, ATA_STATUS);	/* clear IRQ */
 		++n;
 		++blknr;
-		buffer += ATA_SECTORWORDS;
+		buffer += ATA_SECTORWORDS << 2;
 	}
 WR_OUT:
 	ide_led (DEVICE_LED(device), 0);	/* LED off	*/
 	return (n);
 }
 
-int sata_identify(int dev)
-{
-#ifdef CONFIG_SATA
-    sata_dev_desc[dev].type=DEV_TYPE_UNKNOWN;
-    sata_dev_desc[dev].if_type=IF_TYPE_IDE;
-    sata_dev_desc[dev].dev=dev;
-    sata_dev_desc[dev].part_type=PART_TYPE_UNKNOWN;
-    sata_dev_desc[dev].blksz=0;
-    sata_dev_desc[dev].lba=0;
-    ide_ident(&sata_dev_desc[dev]);
-#ifdef CONFIG_PARTITIONS
-    if ((sata_dev_desc[dev].lba > 0) && (sata_dev_desc[dev].blksz > 0)) {
-        init_part(&sata_dev_desc[dev]);    /* initialize partition type */
-    }
-#endif
-#endif
-    return 0;
-}
-
-int scan_sata (int dev);
-
+/* we don't care about disk number, only init once */
 int init_sata(int dev)
 {
     static int res = 1;
     static u8 init_done = 0;
-    if(init_done)
+
+    if (init_done)
     {
-        return res;
+	return res;
     }
-    
+
     init_done = 1;
+
+    /* Block reset SATA and DMA cores */
+    *(volatile u32*)SYS_CTRL_RSTEN_SET_CTRL = (1UL << SYS_CTRL_RSTEN_SATA_BIT) |
+                                              (1UL << SYS_CTRL_RSTEN_SATA_LINK_BIT) |
+                                              (1UL << SYS_CTRL_RSTEN_SATA_PHY_BIT) |
+                                              (1UL << SYS_CTRL_RSTEN_SGDMA_BIT);
+
+    /* Enable clocks to SATA and DMA cores */
+    *(volatile u32*)SYS_CTRL_CKEN_SET_CTRL = (1UL << SYS_CTRL_CKEN_SATA_BIT);
+    *(volatile u32*)SYS_CTRL_CKEN_SET_CTRL = (1UL << SYS_CTRL_CKEN_DMA_BIT);
     
-    if(ide_preinit())
-    {
-        return res = 1;
-    }
-    
-    if(scan_sata(0))
-    {
-        return res = 1;
-    }
-    
+    udelay(5000);
+    *(volatile u32*)SYS_CTRL_RSTEN_CLR_CTRL = (1UL << SYS_CTRL_RSTEN_SATA_PHY_BIT);
+    udelay(50);
+    *(volatile u32*)SYS_CTRL_RSTEN_CLR_CTRL = (1UL << SYS_CTRL_RSTEN_SATA_LINK_BIT) |
+                                              (1UL << SYS_CTRL_RSTEN_SATA_BIT);
+    udelay(50);
+    *(volatile u32*)SYS_CTRL_RSTEN_CLR_CTRL = (1UL << SYS_CTRL_RSTEN_SGDMA_BIT);
+    udelay(100);
+    /* Apply the Synopsis SATA PHY workarounds */
+    EnableSATAPhy();
+    udelay(10000);
+
+    /* disable and clear core interrupts */
+    *((unsigned long*)SATA_HOST_REGS_BASE + SATA_INT_ENABLE_CLR_OFF) = ~0UL;
+    *((unsigned long*)SATA_HOST_REGS_BASE + SATA_INT_CLR_OFF) = ~0UL;
+
     return res = 0;
 }
 
-/* Check if device is connected to port */
-int sata_bus_probe (int portno)
-{
-    if(portno != 0)
-    {
-        return 0;
-    }
-    else
-    {
-        return 1;
-	}
-}
-
-
 int scan_sata (int dev)
 {
-	/* A bit brain dead, but the code has a legacy */
-    if(dev != 0)
-    {
-        return 0;
-    }
-    
-    sata_identify(0);
-    
+    int retries = 1;
+    int good = 0;
+
+    if (dev < 0 || dev >= CONFIG_SYS_SATA_MAX_DEVICE)
 	return 1;
+
+	sata_dev_desc[dev].type = DEV_TYPE_UNKNOWN;
+    /* Disable SATA interrupts */
+    *(sata_regs_base[dev] + SATA_INT_ENABLE_CLR_OFF) = ~0UL;
+    /* Clear any pending SATA interrupts */
+    *(sata_regs_base[dev] + SATA_INT_CLR_OFF) = ~0UL;
+
+    do {
+	oxnas_sata_outb(dev, ATA_PORT_NSECT, 0);
+	/* Get the PHY working */
+	if (!phy_reset(dev)) {
+	    printf("SATA PHY not ready for device %d\n", dev);
+	    break;
+	}
+	if (!wait_FIS(dev)) {
+	    printf("No FIS received from device %d\n", dev);
+	} else {
+	    good = 1;
+	    break;
+	}
+    } while (retries--);
+
+    if (good) {
+	if (!((scr_read(dev, SATA_SCR_STATUS) & 0xf) == 0x3)) {
+	    printf("No SATA device %d found, PHY status = 0x%08x\n", dev, scr_read(dev, SATA_SCR_STATUS));
+	    return 1;
+	}
+	if (wait_not_busy(dev, 30)) {
+	    printf("Timed out of wait for SATA device %d to have BUSY clear\n", dev);
+	    return 1;
+	}
+
+printf("disk present for dev %d\n", dev);
+	disk_present[dev] = 1;
+    }
+
+    /* post disk detection clean-up */
+    /* set as ata-5 (28-bit) */
+    *(sata_regs_base[dev] + SATA_DRIVE_CONTROL_OFF) = 0UL;
+    /* clear phy/link errors */
+    scr_write(dev, SATA_SCR_ERROR, ~0);
+    /* clear host errors */
+    *(sata_regs_base[dev] + SATA_CONTROL_OFF) |= SATA_SCTL_CLR_ERR;
+    /* clear interrupt register as this clears the error bit in the IDE 
+    status register */
+    *(sata_regs_base[dev] + SATA_INT_CLR_OFF) = ~0UL;
+
+    if (!good)
+	return 1;
+
+printf("calling identify\n");
+    if (identify(&sata_dev_desc[dev])) {
+	printf("Failed to get info for device %d\n", dev);
+	return 1;
+    }
+printf("called identify\n");
+    return 0;	/* success! */
 }
 
 #endif

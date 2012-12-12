@@ -314,6 +314,7 @@ void board_init_f(ulong bootflag)
 			"doc/README.fdt-control");
 	}
 #endif
+
 	debug("monitor len: %08lX\n", gd->mon_len);
 	/*
 	 * Ram is setup, size stored in gd !!
@@ -425,10 +426,10 @@ void board_init_f(ulong bootflag)
 
 	/* 8-byte alignment for ABI compliance */
 	addr_sp &= ~0x07;
-#else	/* ! CONFIG_SPL_BUILD */
+#else
 	addr_sp += 128;	/* leave 32 words for abort-stack   */
 	gd->irq_sp = addr_sp;
-#endif	/* CONFIG_SPL_BUILD */
+#endif
 
 	debug("New Stack Pointer is: %08lx\n", addr_sp);
 

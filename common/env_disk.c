@@ -81,8 +81,13 @@ int env_init(void)
  */
 void env_relocate_spec(void)
 {
+#if defined(CONFIG_CMD_SATA)
+extern void sata_initialize(void);
+#endif
     block_dev_desc_t *dev_desc = NULL;
     int blksread;
+    env_t env;
+
     char envbuf[CONFIG_ENV_SIZE];
     env_t *envptr = (env_t *)envbuf;
 
@@ -93,6 +98,20 @@ void env_relocate_spec(void)
 	set_default_env(NULL);
 	return;
     }
+
+/* at this point we have to init the device. no generic way to do it. */
+#if defined(CONFIG_CMD_SATA)
+    sata_initialize();
+#else
+#error Disk env currently only implemented for sata devices
+#endif
+
+/* before sanity checking, see if the device is ready */
+    if ((dev_desc->blksz == 0) || (dev_desc->lba == 0) || (dev_desc->type == DEV_TYPE_UNKNOWN)) {
+	printf("device %s %d is not available\n", CONFIG_SYS_DISK_ENV_INTERFACE, CONFIG_SYS_DISK_ENV_DEV);
+	set_default_env(NULL);
+	return;
+    }
     /* some sanity checking, just in case. */
     if (CONFIG_ENV_SIZE % dev_desc->blksz) {
 	printf("Env size (%dK) is not a multiple of block size (%luK)\n", CONFIG_ENV_SIZE >> 10, dev_desc->blksz >> 10);
@@ -100,17 +119,17 @@ void env_relocate_spec(void)
 	return;
     }
     if (CONFIG_ENV_OFFSET % dev_desc->blksz) {
-	printf("Env offset (%08lx) is not on a block boundary\n", CONFIG_ENV_OFFSET);
+	printf("Env offset (%08x) is not on a block boundary\n", CONFIG_ENV_OFFSET);
 	set_default_env(NULL);
 	return;
     }
 
     /* now try to read the env block */
-    blksread = dev_desc->block_read(dev_desc->dev, CONFIG_ENV_OFFSET / dev_desc->blksz, CONFIG_ENV_SIZE / dev_desc->blksz, envbuf);
+    blksread = dev_desc->block_read(dev_desc->dev, CONFIG_ENV_OFFSET / dev_desc->blksz, CONFIG_ENV_SIZE / dev_desc->blksz, (char *)&env);
     if (blksread == CONFIG_ENV_SIZE / 512) {
-	if (crc32(0, envptr->data, ENV_SIZE) == envptr->crc) {
+	if (crc32(0, env.data, ENV_SIZE) == env.crc) {
 	    gd->env_valid = 1;
-	    env_import(envbuf, 0);
+	    env_import((char *)&env, 0);
 	    return;
 	} else {
 	    printf("Bad CRC on environment area\n");
@@ -143,7 +162,7 @@ int saveenv(void)
 {
     env_t env;
     size_t envlen;
-    unsigned char *envbuf = &env.data;
+    unsigned char *envbuf = env.data;
     block_dev_desc_t *dev_desc = NULL;
     int blkswrote;
     int rv = 0;

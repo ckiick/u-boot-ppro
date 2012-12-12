@@ -16,9 +16,9 @@
 #define STATUS_LED_BOOT STATUS_LED_BIT	// use status led for boot status
 
 #define OXNAS_USE_NAND 1
-#define OXNAS_USE_NAND_ENV 1
+// #define OXNAS_USE_NAND_ENV 1
 #define OXNAS_USE_SATA 1
-// #define OXNAS_USE_SATA_ENV 1
+#define OXNAS_USE_SATA_ENV 1
 #if (OXNAS_USE_NAND_ENV && OXNAS_USE_SATA_ENV)
 #error "Only 1 env location can be used."
 #endif
