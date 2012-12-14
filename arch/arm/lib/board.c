@@ -38,6 +38,7 @@
  * FIQ Stack: 00ebef7c
  */
 
+#define DEBUG
 #include <common.h>
 #include <command.h>
 #include <malloc.h>
@@ -279,11 +280,7 @@ void board_init_f(ulong bootflag)
 	bootstage_mark_name(BOOTSTAGE_ID_START_UBOOT_F, "board_init_f");
 
 	/* Pointer is writable since we allocated a register for it */
-#ifndef CONFIG_SYS_GBL_DATA_OFFSET
 	gd = (gd_t *) ((CONFIG_SYS_INIT_SP_ADDR) & ~0x07);
-#else
-	gd = (gd_t *) (CONFIG_SYS_TEXT_BASE + CONFIG_SYS_GBL_DATA_OFFSET);
-#endif
 	/* compiler optimization barrier needed for GCC >= 3.4 */
 	__asm__ __volatile__("": : :"memory");
 

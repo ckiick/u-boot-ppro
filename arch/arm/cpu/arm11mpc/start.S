@@ -30,6 +30,8 @@
  * MA 02111-1307 USA
  */
 
+/* modified by Chris J. Kiick for uboot 2012.07 11/12/12 */
+
 #include <asm-offsets.h>
 #include <config.h>
 #include <version.h>
@@ -163,6 +165,12 @@ call_board_init_f:
         bl      board_init_f
 
 /*
+ * At the current time, relocation is not working.  Don't know why.
+ * The code looks correct, but it hangs the system. For now, turn it off.
+ */
+#define NORELOC	/* define this to skip relocation. */
+
+/*
  * void relocate_code (addr_sp, gd, addr_moni)
  *
  * This "function" does not return, instead it continues in RAM
@@ -175,15 +183,20 @@ relocate_code:		/* relocate U-Boot to RAM */
 	mov	r5, r1		/* save addr of gd */
 	mov	r6, r2		/* save dest addr */
 
-	adr	r0, _start		/* current position of code */
-	ldr	r1, _TEXT_BASE		/* relocated position of code */
-	cmp	r0, r1
-	beq	clear_bss		/* skip relo if already there. */
-	ldr	r2, _bss_start_ofs
-	add	r2, r0, r2		/* r2 <- source end address */
-
 stack_setup:	 /* Set up the stack */
 	mov	sp, r4
+
+	adr	r0, _start		/* current position of code */
+#ifdef NORELOC
+	ldr	r1, _TEXT_BASE		/* relocated position of code */
+	cmp	r0, r1
+#else
+	cmp	r0, r6			/* relocation address */
+#endif
+	beq	clear_bss		/* skip relo if already there. */
+	mov	r1, r6			/* dest addr */
+	ldr	r2, _bss_start_ofs
+	add	r2, r0, r2		/* r2 <- source end address */
 
 copy_loop:
 	ldmia	r0!, {r3-r10}	/* copy from source address [r0] */
@@ -191,7 +204,6 @@ copy_loop:
 	cmp	r0, r2		/* until source end address [r2] */
 	ble	copy_loop
 
-	/* most of the fixup stuff is probably wrong. */
 	/*
 	 * fix .rel.dyn relocations
 	 */
@@ -237,6 +249,10 @@ clear_bss:
 	add	r0, r0, r3
 	ldr	r1, _bss_end_ofs	/* stop here                        */
 	add	r1, r1, r3
+#ifndef NORELOC
+	add	r0, r0, r9	/* add relocation offset */
+	add	r1, r1, r9	/* add relocation offset */
+#endif
 	mov 	r2, #0x00000000		/* clear                            */
 
 clbss_l:str	r2, [r0]		/* clear loop...                    */
@@ -249,6 +265,9 @@ jump_2_ram:
 	ldr	r0, _board_init_r_ofs
 	ldr	r1, _TEXT_BASE
 	add	lr, r0, r1
+#ifndef NORELOC
+	add	lr, lr, r9	/* add relocation offset */
+#endif
 	/* setup param for board_init_r */
 	mov	r0, r5		/* gd_t */
 	mov	r1, r6		/* dest addr? */
@@ -346,12 +365,17 @@ cpu_init_crit:
 	sub	sp, sp, #S_FRAME_SIZE
 	stmia	sp, {r0 - r12}	@ Save user registers (now in svc mode) r0-r12
 
+#if 0
 	ldr	r2, _start
 	sub	r2, r2, #(CONFIG_STACKSIZE+CONFIG_SYS_MALLOC_LEN)
 	sub	r2, r2, #(CONFIG_SYS_GBL_DATA_SIZE+8)  @ set base 2 words into abort stack
+#else
+	ldr	r2, IRQ_STACK_START_IN
+#endif
 	@ get values for "aborted" pc and cpsr (into parm regs)
 	ldmia	r2, {r2 - r3}
 	add	r0, sp, #S_FRAME_SIZE		@ grab pointer to old stack
+
 	add	r5, sp, #S_SP
 	mov	r1, lr
 	stmia	r5, {r0 - r3}	@ save sp_SVC, lr_SVC, pc, cpsr
@@ -380,10 +404,13 @@ cpu_init_crit:
 	.endm
 
 	.macro get_bad_stack
+#if 0
 	ldr	r13, _start		@ setup our mode stack
 	sub	r13, r13, #(CONFIG_STACKSIZE+CONFIG_SYS_MALLOC_LEN)
 	sub	r13, r13, #(CONFIG_SYS_GBL_DATA_SIZE+8) @ reserved a couple spots in abort stack
-
+#else
+	ldr	r13, IRQ_STACK_START_IN
+#endif
 	str	lr, [r13]	@ save caller lr in position 0 of saved stack
 	mrs	lr, spsr	@ get the spsr
 	str	lr, [r13, #4]	@ save spsr in position 1 of saved stack

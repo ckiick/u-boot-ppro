@@ -8,12 +8,12 @@ for non pogoplug oxnas devices such as MedionNas.  It has only been tested on
 the pogoplug pro, but it should work with other oxnas pogoplugs.
 
 Pogoplug pro has a weird NAND setup.  It uses a custom Reed-Solomon ECC
-for the environment block, but does not use any ecc for the kernel images
+for the environment block, but does not use any ECC for the kernel images
 themselves (or anything else).  The nand_base code had to be modified slighlty
-to allow the use of custom software ecc with the nand platform driver.  A
-global switch to turn off software ecc (nand_ecc_off) was added.  Another
-change was need to allow ecc only on the environment block.
-If CONFIG_SYS_NAND_ECC_ENV_ONLY is defined, then the software ecc is only
+to allow the use of custom software ECC with the nand platform driver.  A
+global switch to turn off software ECC (nand_ecc_off) was added.  Another
+change was need to allow ECC only on the environment block.
+If CONFIG_SYS_NAND_ECC_ENV_ONLY is defined, then the software ECC is only
 applied to the environment block, and is turned off for the other NAND
 access functions.  The board init code should set nand_ecc_off, just to
 be safe.
@@ -21,12 +21,15 @@ be safe.
 The oxnas boards have a dual-core ARM 11 MPC (multi processing core) CPU.
 This is very similar to the arm1136 cpu, except that it has SMP support.
 Uboot only uses 1 core, and does not even initialize or reference the
-second core.
+second core.  There are some quirks with start.S that make it different
+from the arm1136.
 
-The stage1 boot loader always puts uboot at location 0x60d00000 in RAM.
-This is hard defined at compile time for stage1.  It is not necessary for
-uboot to relocate itself, although it can if it is able.  Even if the
-oxnas uboot does not relocate, it is NOT compiled as SPL.
+The stage1 bootloader reads uboot from NAND and places it at a fixed location
+in RAM.  This location is hard defined at compile time for stage1, and
+corresponds to CONFIG_SYS_TEXT_BASE in uboot.  For NAND, the location is
+0x60d00000.  It is not necessary for uboot to relocate itself, although it
+can if it is able. (So far relocation does not work.) Even if the oxnas
+uboot does not relocate, it is NOT compiled as SPL.
 
 The pogoplug pro PROM code supports booting from SATA.  To boot from SATA
 a disk must be configured as MBR with a stage1 bootloader as well as uboot,
@@ -39,9 +42,8 @@ Changelog (u-boot-2012.07 base X u-boot-1.1.2 mod pogopro):
 boards.cfg mod add oxnas820
 add arch/arm/cpu/arm11mpc/*
 add board/oxnas820/*
-add include/configs/oxnas820.h - heavilfy modified
-?? copied over arch/arm/include/asm/arch-oxnas820/regs.h
-?? copied over include/asm/arch-oxnas820/regs.h
+add include/configs/oxnas820.h
+copied over arch/arm/include/asm/arch-oxnas820/regs.h
 arch/arm/lib/board.c mod add status_led.h if CONFIG_STATUS_LED
 common/env_nvedit.c mod add test for CONFIG_ENV_IS_IN_DISK
 common/env_nand.c mod add nand_ecc_off extern check for doing ecc or not
