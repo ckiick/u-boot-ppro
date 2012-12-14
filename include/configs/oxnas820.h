@@ -87,7 +87,6 @@
 #define CONFIG_BOOTP_GATEWAY
 #define CONFIG_BOOTP_HOSTNAME
 #define CONFIG_BOOTP_SUBNETMASK
-#define CONFIG_BOOTFILE		"uImage" /* file to load */
 
 /*
  * Network
@@ -137,9 +136,9 @@
 #define CONFIG_BOOTARGS	"root=/dev/sda1 ubi.mtd=2,512" COMMON_BOOTARGS
 #define CONFIG_BOOTCOMMAND	"run boot_custom"
 #define CONFIG_EXTRA_ENV_SETTINGS	\
-"load_custom_nand=nboot 60500000 0 500000\0" \
-"load_custom_nand2=nboot 60500000 0 B00000\0" \
-"boot_custom=run load_custom_nand boot || run load_custom_nand2 boot\0"
+	"load_custom_nand=nboot 60500000 0 500000\0" \
+	"load_custom_nand2=nboot 60500000 0 B00000\0" \
+	"boot_custom=run load_custom_nand boot || run load_custom_nand2 boot\0"
 
 #elif OXNAS_USE_SATA_ENV
 #define CONFIG_ENV_SIZE (8*1024)
@@ -147,23 +146,21 @@
 #define CONFIG_SYS_DISK_ENV_INTERFACE	"sata"
 #define CONFIG_SYS_DISK_ENV_DEV	0
 /* these are determined by stage1 loader, which is why all the constants. */
-/* define them in bytes from start of device */
+/* offsets in bytes from start of device */
 #define CONFIG_ENV_OFFSET ((64 * 512) + (256 * 1024) - CONFIG_ENV_SIZE - 1024)
 #define CONFIG_ENV_OFFSET_REDUND (((8 + 64) * 512) + (256 * 1024))
-
-/* XXX need rest of disk defines for env */
-#define CONFIG_BOOTARGS	"???" COMMON_BOOTARGS
-#define CONFIG_BOOTCOMMAND	"run boot_custom"
-#define CONFIG_EXTRA_ENV_SETTINGS	\
-"??? = ???\0" \
-"??? = ???\0" \
-"??? = ???\0"
-
+#define CONFIG_BOOTARGS	"root=/dev/sda2" COMMON_BOOTARGS
+#define CONFIG_BOOTCOMMAND "run dload1 bootm || run dload2 bootm || lightled"
+#define CONFIG_EXTRA_ENV_SETTINGS		\
+	"dload1=sataboot 60500000 0:1\0"	\
+	"dload2=sataboot 60500000 0:2\0"	\
+	"lightled=ledfail 1\0"
 #else /* no env? */
 #define CONFIG_ENV_IS_NOWHERE
 #endif	/* OXNAS_USE_*_ENV */
 
 #define CONFIG_BOOTDELAY 2	/* default is short. */
+#define CONFIG_BOOTFILE		"uImage" /* file to load */
 
 /*
  * NAND
@@ -203,11 +200,10 @@ extern void oxnas_nand_plat_init(void *chip);
 /*
  * Disk support
  */
-
 #if OXNAS_USE_SATA
 #define CONFIG_SATA
 #define CONFIG_LBA48
-#define CONFIZG_SYS_64BIT_LBA
+#define CONFIG_SYS_64BIT_LBA
 #define CONFIG_DOS_PARTITION
 #define CONFIG_SYS_SATA_MAX_DEVICE 2
 #endif
@@ -218,12 +214,12 @@ extern void oxnas_nand_plat_init(void *chip);
 #define CONFIG_SYS_SDRAM_BASE (0x60000000)
 #define CONFIG_MAX_RAM_BANK_SIZE (128 * 1024 * 1024)
 #define CONFIG_SYS_MALLOC_LEN (1024 * 1024)
-// #define CONFIG_SYS_INIT_SP_ADDR (0x60000000 + 128 * 1024 * 1024 - 64 * 1024)
-#define CONFIG_SYS_GBL_DATA_SIZE	128 // size (bytes) for initial data
+#define CONFIG_SYS_INIT_SP_ADDR (0x60000000 + 128 * 1024 * 1024 - 64 * 1024)
+//#define CONFIG_SYS_GBL_DATA_SIZE	128 // size (bytes) for initial data
 // #define CONFIG_SYS_GBL_DATA_OFFSET	(128 * 1024 * 1024 - 64 * 1024 + 256)
-#define CONFIG_SYS_INIT_SP_ADDR (CONFIG_SYS_TEXT_BASE - CONFIG_SYS_MALLOC_LEN - CONFIG_SYS_GBL_DATA_SIZE - 12)
+// #define CONFIG_SYS_INIT_SP_ADDR (CONFIG_SYS_TEXT_BASE - CONFIG_SYS_MALLOC_LEN - CONFIG_SYS_GBL_DATA_SIZE - 12)
 /* XXX Fix this. We should not need to define this. */
-#define CONFIG_SYS_GBL_DATA_OFFSET	(-(CONFIG_SYS_MALLOC_LEN + CONFIG_SYS_GBL_DATA_SIZE))
+// #define CONFIG_SYS_GBL_DATA_OFFSET	(-(CONFIG_SYS_MALLOC_LEN + CONFIG_SYS_GBL_DATA_SIZE))
 
 #define CONFIG_SYS_MEMTEST_START 0x60000000
 #define CONFIG_SYS_MEMTEST_END ((128 * 1024 * 1024 ) + CONFIG_SYS_MEMTEST_START - 1)
