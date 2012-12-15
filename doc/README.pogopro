@@ -8,15 +8,24 @@ for non pogoplug oxnas devices such as MedionNas.  It has only been tested on
 the pogoplug pro, but it should work with other oxnas pogoplugs.
 
 Pogoplug pro has a weird NAND setup.  It uses a custom Reed-Solomon ECC
-for the environment block, but does not use any ECC for the kernel images
-themselves (or anything else).  The nand_base code had to be modified slighlty
-to allow the use of custom software ECC with the nand platform driver.  A
-global switch to turn off software ECC (nand_ecc_off) was added.  Another
+for the environment block and uboot itself, but does not use any ECC for the
+kernel images (or anything else).  The nand_base code had to be modified
+slighlty to allow the use of custom software ECC with the nand platform driver.
+A global switch to turn off software ECC (nand_ecc_off) was added.  Another
 change was need to allow ECC only on the environment block.
 If CONFIG_SYS_NAND_ECC_ENV_ONLY is defined, then the software ECC is only
 applied to the environment block, and is turned off for the other NAND
 access functions.  The board init code should set nand_ecc_off, just to
 be safe.
+
+NB:
+There's probably several better way to implement the ecc quirks.
+A few ideas:
+ - turn on RS ecc by default, and use the bypass for nboot.
+ - implement nboot using nand raw read
+ - have a .raw extension to nboot (nboot.raw args...)
+ - implement a new ecc command that lets use turn sw ecc on or off.
+However, these each require more extensive modifications to the source code.
 
 The oxnas boards have a dual-core ARM 11 MPC (multi processing core) CPU.
 This is very similar to the arm1136 cpu, except that it has SMP support.
@@ -28,7 +37,7 @@ The stage1 bootloader reads uboot from NAND and places it at a fixed location
 in RAM.  This location is hard defined at compile time for stage1, and
 corresponds to CONFIG_SYS_TEXT_BASE in uboot.  For NAND, the location is
 0x60d00000.  It is not necessary for uboot to relocate itself, although it
-can if it is able. (So far relocation does not work.) Even if the oxnas
+can if it is able. (So far relocation does not work.)  Even if the oxnas
 uboot does not relocate, it is NOT compiled as SPL.
 
 The pogoplug pro PROM code supports booting from SATA.  To boot from SATA
