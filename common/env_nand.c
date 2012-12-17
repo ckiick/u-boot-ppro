@@ -268,7 +268,10 @@ int readenv(size_t offset, u_char *buf)
 	size_t amount_loaded = 0;
 	size_t blocksize, len;
 	u_char *char_ptr;
+#ifdef CONFIG_SYS_NAND_ENV_ECC_ON
 	extern int nand_ecc_off;
+	int save_ecc_setting = nand_ecc_off;
+#endif
 
 	blocksize = nand_info[0].erasesize;
 	if (!blocksize)
@@ -276,7 +279,7 @@ int readenv(size_t offset, u_char *buf)
 
 	len = min(blocksize, CONFIG_ENV_SIZE);
 
-#ifdef CONFIG_SYS_NAND_ECC_ENV_ONLY
+#ifdef CONFIG_SYS_NAND_ENV_ECC_ON
 	nand_ecc_off = 0;
 #endif
 	while (amount_loaded < CONFIG_ENV_SIZE && offset < end) {
@@ -292,8 +295,8 @@ int readenv(size_t offset, u_char *buf)
 			amount_loaded += len;
 		}
 	}
-#ifdef CONFIG_SYS_NAND_ECC_ENV_ONLY
-	nand_ecc_off = 1;
+#ifdef CONFIG_SYS_NAND_ENV_ECC_ON
+	nand_ecc_off = save_ecc_setting;
 #endif
 	if (amount_loaded != CONFIG_ENV_SIZE)
 		return 1;

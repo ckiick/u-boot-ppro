@@ -438,6 +438,9 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char * const argv[])
 	const char *quiet_str = getenv("quiet");
 	int dev = nand_curr_device;
 	int repeat = flag & CMD_FLAG_REPEAT;
+#ifdef CONFIG_CMD_NAND_ECC
+	extern int nand_ecc_off;
+#endif
 
 	/* at least two arguments please */
 	if (argc < 2)
@@ -482,6 +485,24 @@ int do_nand(cmd_tbl_t * cmdtp, int flag, int argc, char * const argv[])
 	/* this command operates only on the first nand device */
 	if (strcmp(cmd, "env.oob") == 0)
 		return do_nand_env_oob(cmdtp, argc - 1, argv + 1);
+#endif
+
+#ifdef CONFIG_CMD_NAND_ECC
+	if (strcmp(cmd, "ecc") == 0) {
+		if (argc == 2) {
+			printf("ECC is %s.\n", nand_ecc_off ? "off" : "on");
+			return 0;
+		}
+		if (strcmp(argv[2], "off") == 0) {
+			nand_ecc_off = 1;
+		} else if (strcmp(argv[2], "on") == 0) {
+			nand_ecc_off = 0;
+		} else {
+			printf("Unknown ECC setting.\n");
+			return 1;
+		}
+		return 0;
+	}
 #endif
 
 	/* The following commands operate on the current device, unless
@@ -815,6 +836,10 @@ U_BOOT_CMD(
 	"    first device.\n"
 	"nand env.oob set off|partition - set enviromnent offset\n"
 	"nand env.oob get - get environment offset"
+#endif
+#ifdef CONFIG_CMD_NAND_ECC
+	"\n"
+	"nand ecc [on|off] - turn nand ECC on/off, or display current setting"
 #endif
 );
 

@@ -16,9 +16,9 @@
 #define STATUS_LED_BOOT STATUS_LED_BIT	// use status led for boot status
 
 #define OXNAS_USE_NAND 1
-// #define OXNAS_USE_NAND_ENV 1
+ #define OXNAS_USE_NAND_ENV 1
 #define OXNAS_USE_SATA 1
-#define OXNAS_USE_SATA_ENV 1
+// #define OXNAS_USE_SATA_ENV 1
 #if (OXNAS_USE_NAND_ENV && OXNAS_USE_SATA_ENV)
 #error "Only 1 env location can be used."
 #endif
@@ -63,13 +63,18 @@
 #define CONFIG_CMD_LOADS
 #define CONFIG_CMD_MEMORY
 #define CONFIG_CMD_MISC
-#define CONFIG_CMD_NAND
 #define CONFIG_CMD_NET
 #define CONFIG_CMD_NFS
 #define CONFIG_CMD_PING
 #define CONFIG_CMD_RUN
 #define CONFIG_CMD_SAVEENV
 #define CONFIG_CMD_SOURCE
+
+/* NAND memory support */
+#ifdef OXNAS_USE_NAND
+#define CONFIG_CMD_NAND
+#define CONFIG_CMD_NAND_ECC		/* turn ecc on/off */
+#endif
 
 /* Disk (SATA) support */
 #ifdef OXNAS_USE_SATA
@@ -132,7 +137,7 @@
 #define CONFIG_ENV_IS_IN_NAND
 #define CONFIG_ENV_OFFSET 0xa0000
 #define CONFIG_ENV_RANGE (3 * CONFIG_ENV_SIZE)	/* allow 2 backup blocks */
-#define CONFIG_SYS_NAND_ECC_ENV_ONLY	/* ECC is only for env block */
+#define CONFIG_SYS_NAND_ENV_ECC_ON	/* ECC is always on for env block */
 #define CONFIG_BOOTARGS	"root=/dev/sda1 ubi.mtd=2,512" COMMON_BOOTARGS
 #define CONFIG_BOOTCOMMAND	"run boot_custom"
 #define CONFIG_EXTRA_ENV_SETTINGS	\

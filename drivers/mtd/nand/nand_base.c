@@ -107,7 +107,9 @@ static struct nand_ecclayout nand_oob_128 = {
 		 .length = 78} }
 };
 
+#if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 int nand_ecc_off = 0;
+#endif
 
 static int nand_get_device(struct nand_chip *chip, struct mtd_info *mtd,
 			   int new_state);
@@ -884,8 +886,10 @@ static int nand_read_page_swecc(struct mtd_info *mtd, struct nand_chip *chip,
 
 	chip->ecc.read_page_raw(mtd, chip, buf, page);
 
+#if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 	if (nand_ecc_off)
 		return 0;
+#endif
 	
 	for (i = 0; eccsteps; eccsteps--, i += eccbytes, p += eccsize)
 		chip->ecc.calculate(mtd, p, &ecc_calc[i]);
@@ -944,8 +948,10 @@ static int nand_read_subpage(struct mtd_info *mtd, struct nand_chip *chip,
 	p = bufpoi + data_col_addr;
 	chip->read_buf(mtd, p, datafrag_len);
 
+#if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 	if (nand_ecc_off)
 		return 0;
+#endif
 
 	/* Calculate  ECC */
 	for (i = 0; i < eccfrag_len ; i += chip->ecc.bytes, p += chip->ecc.size)

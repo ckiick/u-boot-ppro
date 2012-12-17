@@ -55,7 +55,9 @@ static struct nand_ecclayout oxnas_nand_ecc_layout = {
 
 void oxnas_nand_plat_init(void *chip)
 {
+#if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 	extern int nand_ecc_off;
+#endif
 	struct nand_chip *nand = (struct nand_chip *)chip;
 
 	/* enable clock and release static block reset */
@@ -77,7 +79,7 @@ void oxnas_nand_plat_init(void *chip)
 	nand->ecc.correct = nand_correct_data_rs;
 	nand->ecc.layout = &oxnas_nand_ecc_layout;
 	nand->ecclayout = &oxnas_nand_ecc_layout;
-#ifdef CONFIG_SYS_NAND_ECC_ENV_ONLY
+#if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 	nand_ecc_off = 1;
 #endif
 }
