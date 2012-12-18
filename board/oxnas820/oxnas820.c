@@ -10,7 +10,7 @@ DECLARE_GLOBAL_DATA_PTR;
 
 int board_init(void)
 {
-    gd->bd->bi_arch_number = MACH_TYPE_OXNAS;
+    gd->bd->bi_arch_number = MACH_TYPE_OXNAS820;
     gd->bd->bi_boot_params = PHYS_SDRAM_1_PA + 0x100;
 /*    gd->flags = 0; */
 
