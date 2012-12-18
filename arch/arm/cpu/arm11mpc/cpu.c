@@ -78,3 +78,24 @@ int cleanup_before_linux (void)
 	return (0);
 }
 
+/* needed for USB, even if we have to fake it. */
+
+void invalidate_dcache_all(void)
+{
+}
+
+void flush_dcache_all(void)
+{
+}
+
+void invalidate_dcache_range(unsigned long start, unsigned long stop)
+{
+}
+
+void flush_dcache_range(unsigned long start, unsigned long stop)
+{
+}
+
+void flush_cache(unsigned long start, unsigned long size)
+{
+}

@@ -16,12 +16,15 @@
 #define STATUS_LED_BOOT STATUS_LED_BIT	// use status led for boot status
 
 #define OXNAS_USE_NAND 1
- #define OXNAS_USE_NAND_ENV 1
+#define OXNAS_USE_NAND_ENV 1
 #define OXNAS_USE_SATA 1
 // #define OXNAS_USE_SATA_ENV 1
 #if (OXNAS_USE_NAND_ENV && OXNAS_USE_SATA_ENV)
 #error "Only 1 env location can be used."
 #endif
+
+/* define this to (try to) get USB working */
+#define OXNAS_USE_USB 1
 
 #define RPSCLK 6250000
 #define CONFIG_SYS_HZ ((RPSCLK) / 16) 
@@ -69,13 +72,14 @@
 #define CONFIG_CMD_RUN
 #define CONFIG_CMD_SAVEENV
 #define CONFIG_CMD_SOURCE
-
+#ifdef OXNAS_USE_USB
+#define CONFIG_CMD_USB
+#endif
 /* NAND memory support */
 #ifdef OXNAS_USE_NAND
 #define CONFIG_CMD_NAND
 #define CONFIG_CMD_NAND_ECC		/* turn ecc on/off */
 #endif
-
 /* Disk (SATA) support */
 #ifdef OXNAS_USE_SATA
 #define CONFIG_CMD_SATA
@@ -242,12 +246,12 @@ extern void oxnas_nand_plat_init(void *chip);
 /*
  * USB Host. USB needs work.
  */
-/*
+#ifdef OXNAS_USE_USB
 #define CONFIG_USB_STORAGE
 #define CONFIG_USB_EHCI
-#define CONFIG_USB_EHCI_OXNAS
+#define CONFIG_USB_EHCI_OXNAS820
 #define CONFIG_EHCI_IS_TDI
-*/
+#endif
 
 /*
  * Shell
