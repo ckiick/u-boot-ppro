@@ -64,7 +64,6 @@
  * select serial console configuration
  */
 #define CONFIG_SERIAL0			1	/* use SERIAL 0 on SMDKC100 */
-#define CONFIG_SERIAL_MULTI		1
 
 /* PWM */
 #define CONFIG_PWM			1
@@ -181,13 +180,6 @@
 #define CONFIG_SYS_LOAD_ADDR		CONFIG_SYS_SDRAM_BASE
 
 #define CONFIG_SYS_HZ			1000
-
-/*-----------------------------------------------------------------------
- * Stack sizes
- *
- * The stack sizes are set up in start.S using the settings below
- */
-#define CONFIG_STACKSIZE	(256 << 10)	/* 256 KiB */
 
 /* SMDKC100 has 1 banks of DRAM, we use only one in U-Boot */
 #define CONFIG_NR_DRAM_BANKS	1

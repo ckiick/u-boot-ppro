@@ -24,8 +24,6 @@
 
 #define CONFIG_MX53
 
-#define CONFIG_SYS_MX5_HCLK	24000000
-#define CONFIG_SYS_MX5_CLK32		32768
 #define CONFIG_DISPLAY_CPUINFO
 #define CONFIG_DISPLAY_BOARDINFO
 
@@ -67,7 +65,6 @@
 /* Eth Configs */
 #define CONFIG_HAS_ETH1
 #define CONFIG_MII
-#define CONFIG_DISCOVER_PHY
 
 #define CONFIG_CMD_PING
 #define CONFIG_CMD_DHCP
@@ -122,7 +119,7 @@
 		"dhcp ${uimage}; bootm\0" \
 
 #define CONFIG_BOOTCOMMAND \
-	"if mmc rescan ${mmcdev}; then " \
+	"mmc dev ${mmcdev}; if mmc rescan; then " \
 		"if run loadbootscript; then " \
 			"run bootscript; " \
 		"else " \
@@ -153,9 +150,6 @@
 
 #define CONFIG_SYS_HZ		1000
 #define CONFIG_CMDLINE_EDITING
-
-/* Stack sizes */
-#define CONFIG_STACKSIZE	(128 * 1024)	/* regular stack */
 
 /* Physical Memory Map */
 #define CONFIG_NR_DRAM_BANKS	2

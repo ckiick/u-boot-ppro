@@ -145,17 +145,6 @@
 #define CONFIG_SYS_LOAD_ADDR	0x7fc0	/* default load address */
 
 /*-----------------------------------------------------------------------
- * Stack sizes
- *
- * The stack sizes are set up in start.S using the settings below
- */
-#define CONFIG_STACKSIZE	(128 * 1024)	/* regular stack */
-#ifdef CONFIG_USE_IRQ
-#define CONFIG_STACKSIZE_IRQ	(4 * 1024)	/* IRQ stack */
-#define CONFIG_STACKSIZE_FIQ	(4 * 1024)	/* FIQ stack */
-#endif
-
-/*-----------------------------------------------------------------------
  * Physical Memory Map
  */
 #define CONFIG_NR_DRAM_BANKS	1	/* we have 1 bank of DRAM */
@@ -241,6 +230,7 @@
 #define CONFIG_SYS_FLASH_PROTECTION	/* The devices have real protection */
 #define CONFIG_SYS_FLASH_EMPTY_INFO	/* flinfo indicates empty blocks */
 
+#define CONFIG_SYS_FLASH_USE_BUFFER_WRITE /* use buffered writes */
 #endif
 
 #endif	/* __CONFIG_H */

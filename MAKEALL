@@ -19,6 +19,9 @@ usage()
 	  -l,        --list            List all targets to be built
 	  -m,        --maintainers     List all targets and maintainer email
 	  -M,        --mails           List all targets and all affilated emails
+	  -C,        --check           Enable build checking
+	  -n,        --continue        Continue (skip boards already built)
+	  -r,        --rebuild-errors  Rebuild any boards that errored
 	  -h,        --help            This help output
 
 	Selections by these options are logically ANDed; if the same option
@@ -51,8 +54,8 @@ usage()
 	exit ${ret}
 }
 
-SHORT_OPTS="ha:c:v:s:lmM"
-LONG_OPTS="help,arch:,cpu:,vendor:,soc:,list,maintainers,mails"
+SHORT_OPTS="ha:c:v:s:lmMCnr"
+LONG_OPTS="help,arch:,cpu:,vendor:,soc:,list,maintainers,mails,check,continue,rebuild-errors"
 
 # Option processing based on util-linux-2.13/getopt-parse.bash
 
@@ -72,6 +75,8 @@ SELECTED=''
 ONLY_LIST=''
 PRINT_MAINTS=''
 MAINTAINERS_ONLY=''
+CONTINUE=''
+REBUILD_ERRORS=''
 
 while true ; do
 	case "$1" in
@@ -87,9 +92,9 @@ while true ; do
 	-c|--cpu)
 		# echo "Option CPU: argument \`$2'"
 		if [ "$opt_c" ] ; then
-			opt_c="${opt_c%)} || \$3 == \"$2\")"
+			opt_c="${opt_c%)} || \$3 == \"$2\" || \$3 ~ /$2:/)"
 		else
-			opt_c="(\$3 == \"$2\")"
+			opt_c="(\$3 == \"$2\" || \$3 ~ /$2:/)"
 		fi
 		SELECTED='y'
 		shift 2 ;;
@@ -111,6 +116,15 @@ while true ; do
 		fi
 		SELECTED='y'
 		shift 2 ;;
+	-C|--check)
+		CHECK='C=1'
+		shift ;;
+	-n|--continue)
+		CONTINUE='y'
+		shift ;;
+	-r|--rebuild-errors)
+		REBUILD_ERRORS='y'
+		shift ;;
 	-l|--list)
 		ONLY_LIST='y'
 		shift ;;
@@ -194,7 +208,9 @@ fi
 OUTPUT_PREFIX="${BUILD_DIR}"
 
 [ -d ${LOG_DIR} ] || mkdir "${LOG_DIR}" || exit 1
-find "${LOG_DIR}/" -type f -exec rm -f {} +
+if [ "$CONTINUE" != 'y' -a "$REBUILD_ERRORS" != 'y' ] ; then
+	find "${LOG_DIR}/" -type f -exec rm -f {} +
+fi
 
 LIST=""
 
@@ -204,6 +220,7 @@ ERR_LIST=""
 WRN_CNT=0
 WRN_LIST=""
 TOTAL_CNT=0
+SKIP_CNT=0
 CURRENT_CNT=0
 OLDEST_IDX=1
 RC=0
@@ -211,14 +228,17 @@ RC=0
 # Helper funcs for parsing boards.cfg
 boards_by_field()
 {
+	FS="[ \t]+"
+	[ -n "$3" ] && FS="$3"
 	awk \
 		-v field="$1" \
 		-v select="$2" \
+		-F "$FS" \
 		'($1 !~ /^#/ && $field == select) { print $1 }' \
 		boards.cfg
 }
 boards_by_arch() { boards_by_field 2 "$@" ; }
-boards_by_cpu()  { boards_by_field 3 "$@" ; }
+boards_by_cpu()  { boards_by_field 3 "$@" "[: \t]+" ; }
 boards_by_soc()  { boards_by_field 6 "$@" ; }
 
 #########################################################################
@@ -331,18 +351,27 @@ LIST_ppc="		\
 LIST_SA="$(boards_by_cpu sa1100)"
 
 #########################################################################
+## ARM7 Systems
+#########################################################################
+
+LIST_ARM7="$(boards_by_cpu arm720t)"
+
+#########################################################################
 ## ARM9 Systems
 #########################################################################
 
 LIST_ARM9="$(boards_by_cpu arm920t)	\
 	$(boards_by_cpu arm926ejs)	\
 	$(boards_by_cpu arm925t)	\
+	$(boards_by_cpu arm946es)	\
 "
 
 #########################################################################
 ## ARM11 Systems
 #########################################################################
-LIST_ARM11="$(boards_by_cpu arm1136)"
+LIST_ARM11="$(boards_by_cpu arm1136)	\
+	$(boards_by_cpu arm1176)	\
+"
 
 #########################################################################
 ## ARMV7 Systems
@@ -365,19 +394,16 @@ LIST_pxa="$(boards_by_cpu pxa)"
 LIST_ixp="$(boards_by_cpu ixp)"
 
 #########################################################################
+## SPEAr Systems
+#########################################################################
+
+LIST_spear="$(boards_by_soc spear)"
+
+#########################################################################
 ## ARM groups
 #########################################################################
 
-LIST_arm="			\
-	${LIST_SA}		\
-	${LIST_ARM9}		\
-	${LIST_ARM10}		\
-	${LIST_ARM11}		\
-	${LIST_ARMV7}	\
-	${LIST_at91}		\
-	${LIST_pxa}		\
-	${LIST_ixp}		\
-"
+LIST_arm="$(boards_by_arch arm)"
 
 #########################################################################
 ## MIPS Systems		(default = big endian)
@@ -385,6 +411,9 @@ LIST_arm="			\
 
 LIST_mips4kc="		\
 	incaip		\
+	incaip_100MHz	\
+	incaip_133MHz	\
+	incaip_150MHz	\
 	qemu_mips	\
 	vct_platinum	\
 	vct_platinum_small	\
@@ -405,7 +434,6 @@ LIST_au1xx0="		\
 	dbau1100	\
 	dbau1500	\
 	dbau1550	\
-	gth2		\
 "
 
 LIST_mips="		\
@@ -458,14 +486,7 @@ LIST_microblaze="$(boards_by_arch microblaze)"
 ## ColdFire Systems
 #########################################################################
 
-LIST_m68k="$(boards_by_arch m68k)
-	EB+MCF-EV123		\
-	EB+MCF-EV123_internal	\
-	M52277EVB		\
-	M5235EVB		\
-	M54451EVB		\
-	M54455EVB		\
-"
+LIST_m68k="$(boards_by_arch m68k)"
 LIST_coldfire=${LIST_m68k}
 
 #########################################################################
@@ -608,6 +629,13 @@ list_target() {
 donep="${LOG_DIR}/._done_"
 skipp="${LOG_DIR}/._skip_"
 
+build_target_killed() {
+	echo "Aborted $target build."
+	# Remove the logs for this board since it was aborted
+	rm -f ${LOG_DIR}/$target.MAKELOG ${LOG_DIR}/$target.ERR
+	exit
+}
+
 build_target() {
 	target=$1
 	build_idx=$2
@@ -620,6 +648,7 @@ build_target() {
 	if [ $BUILD_MANY == 1 ] ; then
 		output_dir="${OUTPUT_PREFIX}/${target}"
 		mkdir -p "${output_dir}"
+		trap build_target_killed TERM
 	else
 		output_dir="${OUTPUT_PREFIX}"
 	fi
@@ -629,7 +658,7 @@ build_target() {
 	${MAKE} distclean >/dev/null
 	${MAKE} -s ${target}_config
 
-	${MAKE} ${JOBS} all \
+	${MAKE} ${JOBS} ${CHECK} all \
 		>${LOG_DIR}/$target.MAKELOG 2> ${LOG_DIR}/$target.ERR
 
 	# Check for 'make' errors
@@ -638,7 +667,9 @@ build_target() {
 	fi
 
 	if [ $BUILD_MANY == 1 ] ; then
-		${MAKE} tidy
+		trap - TERM
+
+		${MAKE} -s tidy
 
 		if [ -s ${LOG_DIR}/${target}.ERR ] ; then
 			cp ${LOG_DIR}/${target}.ERR ${OUTPUT_PREFIX}/ERR/${target}
@@ -716,10 +747,20 @@ build_targets() {
 			: $((CURRENT_CNT += 1))
 			rm -f "${donep}${TOTAL_CNT}"
 			rm -f "${skipp}${TOTAL_CNT}"
-			if [ $BUILD_MANY == 1 ] ; then
-				build_target ${t} ${TOTAL_CNT} &
+			if [ "$CONTINUE" = 'y' -a -e ${LOG_DIR}/$t.MAKELOG ] ; then
+				: $((SKIP_CNT += 1))
+				touch "${donep}${TOTAL_CNT}"
+			elif [ "$REBUILD_ERRORS" = 'y' -a ! -e ${LOG_DIR}/$t.ERR ] ; then
+				: $((SKIP_CNT += 1))
+				touch "${donep}${TOTAL_CNT}"
 			else
-				build_target ${t} ${TOTAL_CNT}
+				if [ $BUILD_MANY == 1 ] ; then
+					build_target ${t} ${TOTAL_CNT} &
+				else
+					CUR_TGT="${t}"
+					build_target ${t} ${TOTAL_CNT}
+					CUR_TGT=''
+				fi
 			fi
 		fi
 
@@ -743,7 +784,11 @@ build_targets() {
 #-----------------------------------------------------------------------
 
 kill_children() {
-	kill -- "-$1"
+	local pgid=`ps -p $$ --no-headers -o "%r" | tr -d ' '`
+	local children=`pgrep -g $pgid | grep -v $$ | grep -v $pgid`
+
+	kill $children 2> /dev/null
+	wait $children 2> /dev/null
 
 	exit
 }
@@ -751,19 +796,29 @@ kill_children() {
 print_stats() {
 	if [ "$ONLY_LIST" == 'y' ] ; then return ; fi
 
+	# Only count boards that completed
+	: $((TOTAL_CNT = `find ${skipp}* 2> /dev/null | wc -l`))
+
 	rm -f ${donep}* ${skipp}*
 
 	if [ $BUILD_MANY == 1 ] && [ -e "${OUTPUT_PREFIX}/ERR" ] ; then
-		ERR_LIST=`grep -iwl error ${OUTPUT_PREFIX}/ERR/*`
+		ERR_LIST=`grep -riwl error ${OUTPUT_PREFIX}/ERR/`
 		ERR_LIST=`for f in $ERR_LIST ; do echo -n " $(basename $f)" ; done`
 		ERR_CNT=`echo $ERR_LIST | wc -w | awk '{print $1}'`
-		WRN_LIST=`grep -iwL error ${OUTPUT_PREFIX}/ERR/*`
+		WRN_LIST=`grep -riwL error ${OUTPUT_PREFIX}/ERR/`
 		WRN_LIST=`for f in $WRN_LIST ; do echo -n " $(basename $f)" ; done`
 		WRN_CNT=`echo $WRN_LIST | wc -w | awk '{print $1}'`
+	else
+		# Remove the logs for any board that was interrupted
+		rm -f ${LOG_DIR}/${CUR_TGT}.MAKELOG ${LOG_DIR}/${CUR_TGT}.ERR
 	fi
 
+	: $((TOTAL_CNT -= ${SKIP_CNT}))
 	echo ""
 	echo "--------------------- SUMMARY ----------------------------"
+	if [ "$CONTINUE" = 'y' -o "$REBUILD_ERRORS" = 'y' ] ; then
+		echo "Boards skipped: ${SKIP_CNT}"
+	fi
 	echo "Boards compiled: ${TOTAL_CNT}"
 	if [ ${ERR_CNT} -gt 0 ] ; then
 		echo "Boards with errors: ${ERR_CNT} (${ERR_LIST} )"
@@ -774,7 +829,7 @@ print_stats() {
 	echo "----------------------------------------------------------"
 
 	if [ $BUILD_MANY == 1 ] ; then
-		kill_children $$ &
+		kill_children
 	fi
 
 	exit $RC

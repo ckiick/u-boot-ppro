@@ -58,7 +58,6 @@
 #define V_OSCK				26000000 /* Clock output from T2 */
 #define V_SCLK				(V_OSCK >> 1)
 
-#undef CONFIG_USE_IRQ			/* no support for IRQs */
 #define CONFIG_MISC_INIT_R
 
 #define CONFIG_CMDLINE_TAG		/* enable passing of ATAGs */
@@ -202,7 +201,7 @@
 		"run nandargs; " \
 		"run loaduimage_ubi; " \
 		"bootm ${loadaddr}\0" \
-	"autoboot=if mmc rescan ${mmcdev}; then " \
+	"autoboot=mmc dev ${mmcdev}; if mmc rescan; then " \
 			"if run loadbootscript; then " \
 				"run bootscript; " \
 			"else " \
@@ -245,9 +244,6 @@
 #define CONFIG_SYS_PTV			2 /* Divisor: 2^(PTV+1) => 8 */
 #define CONFIG_SYS_HZ			1000
 
-/* The stack sizes are set up in start.S using the settings below */
-#define CONFIG_STACKSIZE		(128 << 10) /* regular stack 128 KiB */
-
 /*  Physical Memory Map  */
 #define CONFIG_NR_DRAM_BANKS		2 /* CS1 may or may not be populated */
 #define PHYS_SDRAM_1			OMAP34XX_SDRC_CS0
@@ -275,6 +271,7 @@
 
 /* Defines for SPL */
 #define CONFIG_SPL
+#define CONFIG_SPL_FRAMEWORK
 #define CONFIG_SPL_NAND_SIMPLE
 
 #define CONFIG_SPL_BOARD_INIT
@@ -285,6 +282,9 @@
 #define CONFIG_SPL_SERIAL_SUPPORT
 #define CONFIG_SPL_POWER_SUPPORT
 #define CONFIG_SPL_NAND_SUPPORT
+#define CONFIG_SPL_NAND_BASE
+#define CONFIG_SPL_NAND_DRIVERS
+#define CONFIG_SPL_NAND_ECC
 #define CONFIG_SPL_MMC_SUPPORT
 #define CONFIG_SPL_FAT_SUPPORT
 #define CONFIG_SPL_LDSCRIPT		"$(CPUDIR)/omap-common/u-boot-spl.lds"

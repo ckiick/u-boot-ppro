@@ -82,6 +82,7 @@
 
 #include <common.h>
 #include <command.h>
+#include <environment.h>
 #include <net.h>
 #if defined(CONFIG_STATUS_LED)
 #include <miiphy.h>
@@ -180,7 +181,7 @@ IPaddr_t	NetNtpServerIP;
 int		NetTimeOffset;
 #endif
 
-uchar PktBuf[(PKTBUFSRX+1) * PKTSIZE_ALIGN + PKTALIGN];
+static uchar PktBuf[(PKTBUFSRX+1) * PKTSIZE_ALIGN + PKTALIGN];
 
 /* Receive packet */
 uchar *NetRxPackets[PKTBUFSRX];
@@ -208,32 +209,46 @@ static int NetTryCount;
 
 /**********************************************************************/
 
+static int on_bootfile(const char *name, const char *value, enum env_op op,
+	int flags)
+{
+	switch (op) {
+	case env_op_create:
+	case env_op_overwrite:
+		copy_filename(BootFile, value, sizeof(BootFile));
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+U_BOOT_ENV_CALLBACK(bootfile, on_bootfile);
+
 /*
  * Check if autoload is enabled. If so, use either NFS or TFTP to download
  * the boot file.
  */
 void net_auto_load(void)
 {
+#if defined(CONFIG_CMD_NFS)
 	const char *s = getenv("autoload");
 
-	if (s != NULL) {
-		if (*s == 'n') {
-			/*
-			 * Just use BOOTP/RARP to configure system;
-			 * Do not use TFTP to load the bootfile.
-			 */
-			net_set_state(NETLOOP_SUCCESS);
-			return;
-		}
-#if defined(CONFIG_CMD_NFS)
-		if (strcmp(s, "NFS") == 0) {
-			/*
-			 * Use NFS to load the bootfile.
-			 */
-			NfsStart();
-			return;
-		}
+	if (s != NULL && strcmp(s, "NFS") == 0) {
+		/*
+		 * Use NFS to load the bootfile.
+		 */
+		NfsStart();
+		return;
+	}
 #endif
+	if (getenv_yesno("autoload") == 0) {
+		/*
+		 * Just use BOOTP/RARP to configure system;
+		 * Do not use TFTP to load the bootfile.
+		 */
+		net_set_state(NETLOOP_SUCCESS);
+		return;
 	}
 	TftpStart(TFTPGET);
 }
@@ -315,12 +330,15 @@ int NetLoop(enum proto_t protocol)
 
 	bootstage_mark_name(BOOTSTAGE_ID_ETH_START, "eth_start");
 	net_init();
-	eth_halt();
-	eth_set_current();
-	if (eth_init(bd) < 0) {
+	if (eth_is_on_demand_init() || protocol != NETCONS) {
 		eth_halt();
-		return -1;
-	}
+		eth_set_current();
+		if (eth_init(bd) < 0) {
+			eth_halt();
+			return -1;
+		}
+	} else
+		eth_init_state_only(bd);
 
 restart:
 	net_set_state(NETLOOP_CONTINUE);
@@ -460,6 +478,9 @@ restart:
 
 			net_cleanup_loop();
 			eth_halt();
+			/* Invalidate the last protocol */
+			eth_set_last_protocol(BOOTP);
+
 			puts("\nAbort\n");
 			/* include a debug print as well incase the debug
 			   messages are directed to stderr */
@@ -517,13 +538,21 @@ restart:
 				sprintf(buf, "%lX", (unsigned long)load_addr);
 				setenv("fileaddr", buf);
 			}
-			eth_halt();
+			if (protocol != NETCONS)
+				eth_halt();
+			else
+				eth_halt_state_only();
+
+			eth_set_last_protocol(protocol);
+
 			ret = NetBootFileXferSize;
 			debug_cond(DEBUG_INT_STATE, "--- NetLoop Success!\n");
 			goto done;
 
 		case NETLOOP_FAIL:
 			net_cleanup_loop();
+			/* Invalidate the last protocol */
+			eth_set_last_protocol(BOOTP);
 			debug_cond(DEBUG_INT_STATE, "--- NetLoop Fail!\n");
 			goto done;
 
@@ -652,7 +681,7 @@ NetSetTimeout(ulong iv, thand_f *f)
 			"--- NetLoop timeout handler set (%p)\n", f);
 		timeHandler = f;
 		timeStart = get_timer(0);
-		timeDelta = iv;
+		timeDelta = iv * CONFIG_SYS_HZ / 1000;
 	}
 }
 
@@ -1147,6 +1176,7 @@ NetReceive(uchar *inpkt, int len)
 
 #ifdef CONFIG_NETCONSOLE
 		nc_input_packet((uchar *)ip + IP_UDP_HDR_SIZE,
+					src_ip,
 					ntohs(ip->udp_dst),
 					ntohs(ip->udp_src),
 					ntohs(ip->udp_len) - UDP_HDR_SIZE);

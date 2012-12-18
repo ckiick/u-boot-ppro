@@ -34,6 +34,7 @@
 #define CONFIG_OMAP		1	/* in a TI OMAP core */
 #define CONFIG_OMAP34XX		1	/* which is a 34XX */
 #define CONFIG_OMAP3_BEAGLE	1	/* working with BEAGLE */
+#define CONFIG_OMAP_GPIO
 
 #define CONFIG_SDRC	/* The chip has SDRC controller */
 
@@ -50,7 +51,6 @@
 #define V_OSCK			26000000	/* Clock output from T2 */
 #define V_SCLK			(V_OSCK >> 1)
 
-#undef CONFIG_USE_IRQ				/* no support for IRQs */
 #define CONFIG_MISC_INIT_R
 
 #define CONFIG_OF_LIBFDT		1
@@ -117,21 +117,19 @@
 #define CONFIG_SYS_I2C_NOPROBES		{{0x0, 0x0}}
 
 /* USB */
-#define CONFIG_MUSB_UDC			1
-#define CONFIG_USB_OMAP3		1
+#define CONFIG_MUSB_GADGET
+#define CONFIG_USB_MUSB_OMAP2PLUS
+#define CONFIG_MUSB_PIO_ONLY
+#define CONFIG_USB_GADGET_DUALSPEED
 #define CONFIG_TWL4030_USB		1
-
-/* USB device configuration */
-#define CONFIG_USB_DEVICE		1
-#define CONFIG_USB_TTY			1
-#define CONFIG_SYS_CONSOLE_IS_IN_ENV	1
+#define CONFIG_USB_ETHER
+#define CONFIG_USB_ETHER_RNDIS
 
 /* USB EHCI */
 #define CONFIG_CMD_USB
 #define CONFIG_USB_EHCI
 
 #define CONFIG_USB_EHCI_OMAP
-/*#define CONFIG_EHCI_DCACHE*/ /* leave it disabled for now */
 #define CONFIG_OMAP_EHCI_PHY1_RESET_GPIO	147
 
 #define CONFIG_USB_ULPI
@@ -224,7 +222,7 @@
 	"bootfile=uImage.beagle\0" \
 	"console=ttyO2,115200n8\0" \
 	"mpurate=auto\0" \
-	"buddy=none "\
+	"buddy=none\0" \
 	"optargs=\0" \
 	"camera=none\0" \
 	"vram=12M\0" \
@@ -289,7 +287,7 @@
 	"userbutton_nonxm=gpio input 7;\0"
 /* "run userbutton" will return 1 (false) if is pressed and 0 (false) if not */
 #define CONFIG_BOOTCOMMAND \
-	"if mmc rescan ${mmcdev}; then " \
+	"mmc dev ${mmcdev}; if mmc rescan; then " \
 		"if run userbutton; then " \
 			"setenv bootenv uEnv.txt;" \
 		"else " \
@@ -344,13 +342,6 @@
 #define CONFIG_SYS_HZ			1000
 
 /*-----------------------------------------------------------------------
- * Stack sizes
- *
- * The stack sizes are set up in start.S using the settings below
- */
-#define CONFIG_STACKSIZE	(128 << 10)	/* regular stack 128 KiB */
-
-/*-----------------------------------------------------------------------
  * Physical Memory Map
  */
 #define CONFIG_NR_DRAM_BANKS	2	/* CS1 may or may not be populated */
@@ -398,6 +389,7 @@
 
 /* Defines for SPL */
 #define CONFIG_SPL
+#define CONFIG_SPL_FRAMEWORK
 #define CONFIG_SPL_NAND_SIMPLE
 #define CONFIG_SPL_TEXT_BASE		0x40200800
 #define CONFIG_SPL_MAX_SIZE		(54 * 1024)	/* 8 KB for stack */
@@ -420,6 +412,10 @@
 #define CONFIG_SPL_FAT_SUPPORT
 #define CONFIG_SPL_SERIAL_SUPPORT
 #define CONFIG_SPL_NAND_SUPPORT
+#define CONFIG_SPL_NAND_BASE
+#define CONFIG_SPL_NAND_DRIVERS
+#define CONFIG_SPL_NAND_ECC
+#define CONFIG_SPL_GPIO_SUPPORT
 #define CONFIG_SPL_POWER_SUPPORT
 #define CONFIG_SPL_OMAP3_ID_NAND
 #define CONFIG_SPL_LDSCRIPT		"$(CPUDIR)/omap-common/u-boot-spl.lds"

@@ -46,8 +46,6 @@
 #define CONFIG_BOARD_LATE_INIT
 #define	CONFIG_SYS_TEXT_BASE	0x0
 
-#undef CONFIG_USE_IRQ			/* we don't need IRQ/FIQ stuff */
-
 /* we will never enable dcache, because we have to setup MMU first */
 #define CONFIG_SYS_DCACHE_OFF
 
@@ -66,10 +64,10 @@
  * select serial console configuration
  */
 #define CONFIG_PXA_SERIAL
-#define CONFIG_SERIAL_MULTI
 #define CONFIG_FFUART	       1       /* we use FFUART on Conxs */
 #define CONFIG_BTUART	       1       /* we use BTUART on Conxs */
 #define CONFIG_STUART	       1       /* we use STUART on Conxs */
+#define CONFIG_CONS_INDEX	3
 
 /* allow to overwrite serial and ethaddr */
 #define CONFIG_ENV_OVERWRITE
@@ -172,20 +170,10 @@
 #define CONFIG_SYS_CPUSPEED		0x207		/* need to look more closely, I think this is Turbo = 2x, L=91Mhz */
 
 #ifdef CONFIG_MMC
-#define CONFIG_PXA_MMC
+#define	CONFIG_GENERIC_MMC
+#define	CONFIG_PXA_MMC_GENERIC
 #define CONFIG_CMD_MMC
 #define CONFIG_SYS_MMC_BASE		0xF0000000
-#endif
-
-/*
- * Stack sizes
- *
- * The stack sizes are set up in start.S using the settings below
- */
-#define CONFIG_STACKSIZE	(128*1024)	/* regular stack */
-#ifdef CONFIG_USE_IRQ
-#define CONFIG_STACKSIZE_IRQ	(4*1024)	/* IRQ stack */
-#define CONFIG_STACKSIZE_FIQ	(4*1024)	/* FIQ stack */
 #endif
 
 /*

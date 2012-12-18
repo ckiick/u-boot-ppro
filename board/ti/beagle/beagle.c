@@ -42,6 +42,11 @@
 #include <asm/arch/sys_proto.h>
 #include <asm/gpio.h>
 #include <asm/mach-types.h>
+#include <asm/omap_musb.h>
+#include <asm/errno.h>
+#include <linux/usb/ch9.h>
+#include <linux/usb/gadget.h>
+#include <linux/usb/musb.h>
 #include "beagle.h"
 #include <command.h>
 
@@ -49,8 +54,6 @@
 #include <usb.h>
 #include <asm/ehci-omap.h>
 #endif
-
-#define pr_debug(fmt, args...) debug(fmt, ##args)
 
 #define TWL4030_I2C_BUS			0
 #define EXPANSION_EEPROM_I2C_BUS	1
@@ -112,7 +115,7 @@ int board_init(void)
  *		GPIO173, GPIO172, GPIO171: 1 0 1 => C4
  *		GPIO173, GPIO172, GPIO171: 0 0 0 => xM
  */
-int get_board_revision(void)
+static int get_board_revision(void)
 {
 	int revision;
 
@@ -211,7 +214,7 @@ void get_board_mem_timings(u32 *mcfg, u32 *ctrla, u32 *ctrlb, u32 *rfr_ctrl,
  *		bus 1 for the availability of an AT24C01B serial EEPROM.
  *		returns the device_vendor field from the EEPROM
  */
-unsigned int get_expansion_id(void)
+static unsigned int get_expansion_id(void)
 {
 	i2c_set_bus_num(EXPANSION_EEPROM_I2C_BUS);
 
@@ -230,11 +233,12 @@ unsigned int get_expansion_id(void)
 	return expansion_config.device_vendor;
 }
 
+#ifdef CONFIG_VIDEO_OMAP3
 /*
  * Configure DSS to display background color on DVID
  * Configure VENC to display color bar on S-Video
  */
-void beagle_display_init(void)
+static void beagle_display_init(void)
 {
 	omap3_dss_venc_config(&venc_config_std_tv, VENC_HEIGHT, VENC_WIDTH);
 	switch (get_board_revision()) {
@@ -284,6 +288,34 @@ static void beagle_dvi_pup(void)
 		break;
 	}
 }
+#endif
+
+#ifdef CONFIG_USB_MUSB_OMAP2PLUS
+static struct musb_hdrc_config musb_config = {
+	.multipoint     = 1,
+	.dyn_fifo       = 1,
+	.num_eps        = 16,
+	.ram_bits       = 12,
+};
+
+static struct omap_musb_board_data musb_board_data = {
+	.interface_type	= MUSB_INTERFACE_ULPI,
+};
+
+static struct musb_hdrc_platform_data musb_plat = {
+#if defined(CONFIG_MUSB_HOST)
+	.mode           = MUSB_HOST,
+#elif defined(CONFIG_MUSB_GADGET)
+	.mode		= MUSB_PERIPHERAL,
+#else
+#error "Please define either CONFIG_MUSB_HOST or CONFIG_MUSB_GADGET"
+#endif
+	.config         = &musb_config,
+	.power          = 100,
+	.platform_ops	= &omap2430_ops,
+	.board_data	= &musb_board_data,
+};
+#endif
 
 /*
  * Routine: misc_init_r
@@ -460,9 +492,15 @@ int misc_init_r(void)
 
 	dieid_num_r();
 
+#ifdef CONFIG_VIDEO_OMAP3
 	beagle_dvi_pup();
 	beagle_display_init();
 	omap3_dss_enable();
+#endif
+
+#ifdef CONFIG_USB_MUSB_OMAP2PLUS
+	musb_register(&musb_plat, &musb_board_data, (void *)MUSB_BASE);
+#endif
 
 	return 0;
 }
@@ -486,7 +524,7 @@ int board_mmc_init(bd_t *bis)
 }
 #endif
 
-#ifdef CONFIG_USB_EHCI
+#if defined(CONFIG_USB_EHCI) && !defined(CONFIG_SPL_BUILD)
 /* Call usb_stop() before starting the kernel */
 void show_boot_progress(int val)
 {
@@ -500,14 +538,21 @@ static struct omap_usbhs_board_data usbhs_bdata = {
 	.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED
 };
 
-int ehci_hcd_init(void)
+int ehci_hcd_init(int index, struct ehci_hccr **hccr, struct ehci_hcor **hcor)
 {
-	return omap_ehci_hcd_init(&usbhs_bdata);
+	return omap_ehci_hcd_init(&usbhs_bdata, hccr, hcor);
 }
 
-int ehci_hcd_stop(void)
+int ehci_hcd_stop(int index)
 {
 	return omap_ehci_hcd_stop();
 }
 
 #endif /* CONFIG_USB_EHCI */
+
+#if defined(CONFIG_USB_ETHER) && defined(CONFIG_MUSB_GADGET)
+int board_eth_init(bd_t *bis)
+{
+	return usb_eth_initialize(bis);
+}
+#endif

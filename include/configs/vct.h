@@ -47,7 +47,6 @@
 
 #define CONFIG_SYS_MONITOR_BASE		CONFIG_SYS_TEXT_BASE
 #define CONFIG_SYS_MONITOR_LEN		(256 << 10)
-#define CONFIG_STACKSIZE		(256 << 10)
 #define CONFIG_SYS_MALLOC_LEN		(1 << 20)
 #define CONFIG_SYS_BOOTPARAMS_LEN	(128 << 10)
 #define CONFIG_SYS_INIT_SP_OFFSET	0x400000
@@ -137,7 +136,6 @@
  */
 #define CONFIG_USB_EHCI			/* Enable EHCI USB support	*/
 #define CONFIG_USB_EHCI_VCT		/* on VCT platform		*/
-#define CONFIG_EHCI_DCACHE		/* with dcache handling support	*/
 #define CONFIG_EHCI_MMIO_BIG_ENDIAN
 #define CONFIG_EHCI_DESC_BIG_ENDIAN
 #define CONFIG_EHCI_IS_TDI

@@ -61,7 +61,6 @@
 #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (1 << 20))
 
 /* select serial console configuration */
-#define CONFIG_SERIAL_MULTI	1
 #define CONFIG_SERIAL2		1	/* use SERIAL 2 */
 #define CONFIG_BAUDRATE		115200
 
@@ -214,9 +213,6 @@
 
 #define CONFIG_SYS_HZ			1000
 
-/* Stack sizes */
-#define CONFIG_STACKSIZE	(256 << 10)	/* regular stack 256KB */
-
 /* Universal has 2 banks of DRAM */
 #define CONFIG_NR_DRAM_BANKS	2
 #define PHYS_SDRAM_1		CONFIG_SYS_SDRAM_BASE	/* LDDDR2 DMC 0 */
@@ -257,9 +253,9 @@
 #define CONFIG_I2C_MULTI_BUS
 #define CONFIG_SYS_MAX_I2C_BUS	7
 
-#define CONFIG_PMIC
-#define CONFIG_PMIC_I2C
-#define CONFIG_PMIC_MAX8998
+#define CONFIG_POWER
+#define CONFIG_POWER_I2C
+#define CONFIG_POWER_MAX8998
 
 #define CONFIG_USB_GADGET
 #define CONFIG_USB_GADGET_S3C_UDC_OTG

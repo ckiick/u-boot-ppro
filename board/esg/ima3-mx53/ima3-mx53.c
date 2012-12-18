@@ -172,7 +172,7 @@ static void setup_iomux_fec(void)
 }
 
 #ifdef CONFIG_FSL_ESDHC
-struct fsl_esdhc_cfg esdhc_cfg = { MMC_SDHC1_BASE_ADDR, 1 };
+struct fsl_esdhc_cfg esdhc_cfg = { MMC_SDHC1_BASE_ADDR };
 
 int board_mmc_getcd(struct mmc *mmc)
 {
@@ -217,6 +217,7 @@ int board_mmc_init(bd_t *bis)
 		PAD_CTL_HYS_ENABLE | PAD_CTL_DRV_HIGH | PAD_CTL_PUE_PULL |
 		PAD_CTL_PKE_ENABLE | PAD_CTL_HYS_ENABLE | PAD_CTL_47K_PU);
 
+	esdhc_cfg.sdhc_clk = mxc_get_clock(MXC_ESDHC_CLK);
 	return fsl_esdhc_initialize(bis, &esdhc_cfg);
 }
 #endif

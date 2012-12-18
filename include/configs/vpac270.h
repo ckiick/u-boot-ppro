@@ -75,6 +75,7 @@
  */
 #define	CONFIG_PXA_SERIAL
 #define	CONFIG_FFUART			1
+#define CONFIG_CONS_INDEX		3
 #define	CONFIG_BAUDRATE			115200
 
 /*
@@ -165,14 +166,6 @@
 #define	CONFIG_SYS_HZ			1000		/* Timer @ 3250000 Hz */
 #define	CONFIG_SYS_CPUSPEED		0x190		/* 312MHz */
 
-/*
- * Stack sizes
- */
-#define	CONFIG_STACKSIZE		(128*1024)	/* regular stack */
-#ifdef	CONFIG_USE_IRQ
-#define	CONFIG_STACKSIZE_IRQ		(4*1024)	/* IRQ stack */
-#define	CONFIG_STACKSIZE_FIQ		(4*1024)	/* FIQ stack */
-#endif
 
 /*
  * DRAM Map

@@ -42,26 +42,34 @@ COBJS-y += errno.o
 COBJS-$(CONFIG_OF_CONTROL) += fdtdec.o
 COBJS-$(CONFIG_TEST_FDTDEC) += fdtdec_test.o
 COBJS-$(CONFIG_GZIP) += gunzip.o
+COBJS-$(CONFIG_GZIP_COMPRESSED) += gzip.o
 COBJS-y += hashtable.o
 COBJS-$(CONFIG_LMB) += lmb.o
 COBJS-y += ldiv.o
 COBJS-$(CONFIG_MD5) += md5.o
 COBJS-y += net_utils.o
+COBJS-$(CONFIG_PHYSMEM) += physmem.o
 COBJS-y += qsort.o
 COBJS-$(CONFIG_SHA1) += sha1.o
 COBJS-$(CONFIG_SHA256) += sha256.o
 COBJS-y	+= strmhz.o
 COBJS-$(CONFIG_RBTREE)	+= rbtree.o
-else
-COBJS-$(CONFIG_SPL_SPI_FLASH_SUPPORT) += display_options.o
 endif
 
 ifdef CONFIG_SPL_BUILD
 COBJS-$(CONFIG_SPL_YMODEM_SUPPORT) += crc16.o
+COBJS-$(CONFIG_SPL_NET_SUPPORT) += crc32.o
+ifneq ($(CONFIG_SPL_SPI_FLASH_SUPPORT)$(CONFIG_SPL_NET_SUPPORT),)
+COBJS-y += display_options.o
+endif
+COBJS-$(CONFIG_SPL_NET_SUPPORT) += errno.o
+COBJS-$(CONFIG_SPL_NET_SUPPORT) += hashtable.o
+COBJS-$(CONFIG_SPL_NET_SUPPORT) += net_utils.o
 endif
 COBJS-y += crc32.o
 COBJS-y += ctype.o
 COBJS-y += div64.o
+COBJS-y += linux_string.o
 COBJS-y += string.o
 COBJS-y += time.o
 COBJS-$(CONFIG_BOOTP_PXE) += uuid.o
@@ -76,6 +84,9 @@ OBJS	:= $(addprefix $(obj),$(COBJS))
 
 $(LIB):	$(obj).depend $(OBJS)
 	$(call cmd_link_o_target, $(OBJS))
+
+# SEE README.arm-unaligned-accesses
+$(obj)bzlib.o: CFLAGS += $(PLATFORM_NO_UNALIGNED)
 
 #########################################################################
 

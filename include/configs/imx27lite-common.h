@@ -94,7 +94,6 @@
 #define CONFIG_SYS_MEMTEST_START	0xA0000000
 #define CONFIG_SYS_MEMTEST_END		0xA1000000	/* 16MB RAM test */
 #define CONFIG_NR_DRAM_BANKS	1		/* we have 1 bank of DRAM */
-#define CONFIG_STACKSIZE	(256 * 1024)	/* regular stack */
 #define PHYS_SDRAM_1		0xA0000000	/* DDR Start */
 #define PHYS_SDRAM_1_SIZE	0x08000000	/* DDR size 128MB */
 
@@ -162,6 +161,11 @@
 #define CONFIG_DOS_PARTITION
 
 /*
+ * GPIO
+ */
+#define CONFIG_MXC_GPIO
+
+/*
  * MTD partitions
  */
 #define CONFIG_CMD_MTDPARTS
@@ -200,9 +204,6 @@
 #define CONFIG_LOADADDR		0xa0800000	/* loadaddr env var */
 #define CONFIG_SYS_LOAD_ADDR		CONFIG_LOADADDR
 
-#define xstr(s)	str(s)
-#define str(s)	#s
-
 #define	CONFIG_EXTRA_ENV_SETTINGS					\
 	"netdev=eth0\0"							\
 	"nfsargs=setenv bootargs root=/dev/nfs rw "			\
@@ -215,19 +216,19 @@
 		" console=ttymxc0,${baudrate}\0"			\
 	"addmtd=setenv bootargs ${bootargs} ${mtdparts}\0"		\
 	"addmisc=setenv bootargs ${bootargs}\0"				\
-	"u-boot=" xstr(CONFIG_HOSTNAME) "/u-boot.bin\0"			\
+	"u-boot=" __stringify(CONFIG_HOSTNAME) "/u-boot.bin\0"		\
 	"kernel_addr_r=a0800000\0"					\
-	"bootfile=" xstr(CONFIG_HOSTNAME) "/uImage\0"			\
+	"bootfile=" __stringify(CONFIG_HOSTNAME) "/uImage\0"		\
 	"rootpath=/opt/eldk-4.2-arm/arm\0"				\
 	"net_nfs=tftp ${kernel_addr_r} ${bootfile};"			\
 		"run nfsargs addip addtty addmtd addmisc;"		\
 		"bootm\0"						\
-	"bootcmd=run net_nfs\0"					\
+	"bootcmd=run net_nfs\0"						\
 	"load=tftp ${loadaddr} ${u-boot}\0"				\
-	"update=protect off " xstr(CONFIG_SYS_MONITOR_BASE)		\
-		" +${filesize};era " xstr(CONFIG_SYS_MONITOR_BASE)	\
+	"update=protect off " __stringify(CONFIG_SYS_MONITOR_BASE)	\
+		" +${filesize};era " __stringify(CONFIG_SYS_MONITOR_BASE)\
 		" +${filesize};cp.b ${fileaddr} "			\
-		xstr(CONFIG_SYS_MONITOR_BASE) " ${filesize}\0"		\
+		__stringify(CONFIG_SYS_MONITOR_BASE) " ${filesize}\0"	\
 	"upd=run load update\0"						\
 	"mtdids=" MTDIDS_DEFAULT "\0"					\
 	"mtdparts=" MTDPARTS_DEFAULT "\0"				\

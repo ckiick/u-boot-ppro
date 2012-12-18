@@ -236,6 +236,13 @@ int __arch_cpu_init(void)
 int arch_cpu_init(void)
 	__attribute__((weak, alias("__arch_cpu_init")));
 
+int __power_init_board(void)
+{
+	return 0;
+}
+int power_init_board(void)
+	__attribute__((weak, alias("__power_init_board")));
+
 init_fnc_t *init_sequence[] = {
 	arch_cpu_init,		/* basic arch cpu dependent setup */
 
@@ -246,6 +253,9 @@ init_fnc_t *init_sequence[] = {
 	fdtdec_check_fdt,
 #endif
 	timer_init,		/* initialize timer */
+#ifdef CONFIG_BOARD_POSTCLK_INIT
+	board_postclk_init,
+#endif
 #ifdef CONFIG_FSL_ESDHC
 	get_clocks,
 #endif
@@ -276,6 +286,8 @@ void board_init_f(ulong bootflag)
 #ifdef CONFIG_PRAM
 	ulong reg;
 #endif
+	void *new_fdt = NULL;
+	size_t fdt_size = 0;
 
 	bootstage_mark_name(BOOTSTAGE_ID_START_UBOOT_F, "board_init_f");
 
@@ -411,6 +423,22 @@ void board_init_f(ulong bootflag)
 	debug("Reserving %zu Bytes for Global Data at: %08lx\n",
 			sizeof (gd_t), addr_sp);
 
+#if defined(CONFIG_OF_SEPARATE) && defined(CONFIG_OF_CONTROL)
+	/*
+	 * If the device tree is sitting immediate above our image then we
+	 * must relocate it. If it is embedded in the data section, then it
+	 * will be relocated with other data.
+	 */
+	if (gd->fdt_blob) {
+		fdt_size = ALIGN(fdt_totalsize(gd->fdt_blob) + 0x1000, 32);
+
+		addr_sp -= fdt_size;
+		new_fdt = (void *)addr_sp;
+		debug("Reserving %zu Bytes for FDT at: %08lx\n",
+		      fdt_size, addr_sp);
+	}
+#endif
+
 	/* setup stackpointer for exeptions */
 	gd->irq_sp = addr_sp;
 #ifdef CONFIG_USE_IRQ
@@ -444,6 +472,10 @@ void board_init_f(ulong bootflag)
 	gd->start_addr_sp = addr_sp;
 	gd->reloc_off = addr - _TEXT_BASE;
 	debug("relocation Offset is: %08lx\n", gd->reloc_off);
+	if (new_fdt) {
+		memcpy(new_fdt, gd->fdt_blob, fdt_size);
+		gd->fdt_blob = new_fdt;
+	}
 	memcpy(id, (void *)gd, sizeof(gd_t));
 
 	relocate_code(addr_sp, id, addr);
@@ -494,9 +526,7 @@ void board_init_r(gd_t *id, ulong dest_addr)
 #ifdef CONFIG_CLOCKS
 	set_cpu_clk_info(); /* Setup clock information */
 #endif
-#ifdef CONFIG_SERIAL_MULTI
 	serial_initialize();
-#endif
 
 	debug("Now running in RAM - U-Boot at: %08lx\n", dest_addr);
 
@@ -514,6 +544,7 @@ void board_init_r(gd_t *id, ulong dest_addr)
 #ifdef CONFIG_ARCH_EARLY_INIT_R
 	arch_early_init_r();
 #endif
+	power_init_board();
 
 #if !defined(CONFIG_SYS_NO_FLASH)
 	puts("Flash: ");
@@ -521,15 +552,13 @@ void board_init_r(gd_t *id, ulong dest_addr)
 	flash_size = flash_init();
 	if (flash_size > 0) {
 # ifdef CONFIG_SYS_FLASH_CHECKSUM
-		char *s = getenv("flashchecksum");
-
 		print_size(flash_size, "");
 		/*
 		 * Compute and print flash CRC if flashchecksum is set to 'y'
 		 *
 		 * NOTE: Maybe we should add some WATCHDOG_RESET()? XXX
 		 */
-		if (s && (*s == 'y')) {
+		if (getenv_yesno("flashchecksum") == 1) {
 			printf("  CRC: %08X", crc32(0,
 				(const unsigned char *) CONFIG_SYS_FLASH_BASE,
 				flash_size));
@@ -594,16 +623,6 @@ void board_init_r(gd_t *id, ulong dest_addr)
 	interrupt_init();
 	/* enable exceptions */
 	enable_interrupts();
-
-	/* Perform network card initialisation if necessary */
-#if defined(CONFIG_DRIVER_SMC91111) || defined (CONFIG_DRIVER_LAN91C96)
-	/* XXX: this needs to be moved to board init */
-	if (getenv("ethaddr")) {
-		uchar enetaddr[6];
-		eth_getenv_enetaddr("ethaddr", enetaddr);
-		smc_set_mac_addr(enetaddr);
-	}
-#endif /* CONFIG_DRIVER_SMC91111 || CONFIG_DRIVER_LAN91C96 */
 
 	/* Initialize from environment */
 	load_addr = getenv_ulong("loadaddr", 16, load_addr);

@@ -2,7 +2,7 @@
  * Copyright (C) 2011-2012
  * Gerald Kerma <dreagle@doukki.net>
  * Simon Baatz <gmbnomis@gmail.com>
- * Luka Perkov <uboot@lukaperkov.net>
+ * Luka Perkov <luka@openwrt.org>
  *
  * See file CREDITS for list of people who contributed to this
  * project.
@@ -36,5 +36,9 @@
 #define MV88E1116_PGADR_REG		22
 #define MV88E1116_RGMII_TXTM_CTRL	(1 << 4)
 #define MV88E1116_RGMII_RXTM_CTRL	(1 << 5)
+
+/* SATAHC related */
+#define MVSATAHC_LED_CONF_REG       (MV_SATA_BASE + 0x2C)
+#define MVSATAHC_LED_POLARITY_CTRL  (1 << 3)
 
 #endif /* __IB62x0_H */

@@ -58,6 +58,7 @@
  */
 #define	CONFIG_PXA_SERIAL
 #define	CONFIG_FFUART			1
+#define CONFIG_CONS_INDEX		3
 #define	CONFIG_BAUDRATE			115200
 
 /*
@@ -76,7 +77,8 @@
  */
 #ifdef	CONFIG_CMD_MMC
 #define	CONFIG_MMC
-#define	CONFIG_PXA_MMC
+#define	CONFIG_GENERIC_MMC
+#define	CONFIG_PXA_MMC_GENERIC
 #define	CONFIG_SYS_MMC_BASE		0xF0000000
 #define	CONFIG_CMD_FAT
 #define	CONFIG_CMD_EXT2
@@ -129,15 +131,6 @@
 #undef	CONFIG_SYS_CLKS_IN_HZ
 #define	CONFIG_SYS_HZ			3686400		/* Timer @ 3686400 Hz */
 #define	CONFIG_SYS_CPUSPEED		0x161		/* 400MHz;L=1 M=3 T=1 */
-
-/*
- * Stack sizes
- */
-#define	CONFIG_STACKSIZE		(128*1024)	/* regular stack */
-#ifdef	CONFIG_USE_IRQ
-#define	CONFIG_STACKSIZE_IRQ		(4*1024)	/* IRQ stack */
-#define	CONFIG_STACKSIZE_FIQ		(4*1024)	/* FIQ stack */
-#endif
 
 /*
  * DRAM Map

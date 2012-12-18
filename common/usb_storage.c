@@ -136,6 +136,7 @@ struct us_data {
 	struct usb_device *pusb_dev;	 /* this usb_device */
 
 	unsigned int	flags;			/* from filter initially */
+#	define USB_READY	(1 << 0)
 	unsigned char	ifnum;			/* interface number */
 	unsigned char	ep_in;			/* in endpoint */
 	unsigned char	ep_out;			/* out ....... */
@@ -155,11 +156,16 @@ struct us_data {
 	trans_cmnd	transport;		/* transport routine */
 };
 
+#ifdef CONFIG_USB_EHCI
 /*
- * The U-Boot EHCI driver cannot handle more than 5 page aligned buffers
- * of 4096 bytes in a transfer without running itself out of qt_buffers
+ * The U-Boot EHCI driver can handle any transfer length as long as there is
+ * enough free heap space left, but the SCSI READ(10) and WRITE(10) commands are
+ * limited to 65535 blocks.
  */
-#define USB_MAX_XFER_BLK(start, blksz)	(((4096 * 5) - (start % 4096)) / blksz)
+#define USB_MAX_XFER_BLK	65535
+#else
+#define USB_MAX_XFER_BLK	20
+#endif
 
 static struct us_data usb_stor[USB_MAX_STOR_DEV];
 
@@ -173,9 +179,9 @@ int usb_stor_get_info(struct usb_device *dev, struct us_data *us,
 int usb_storage_probe(struct usb_device *dev, unsigned int ifnum,
 		      struct us_data *ss);
 unsigned long usb_stor_read(int device, unsigned long blknr,
-			    unsigned long blkcnt, void *buffer);
+			    lbaint_t blkcnt, void *buffer);
 unsigned long usb_stor_write(int device, unsigned long blknr,
-			     unsigned long blkcnt, const void *buffer);
+			     lbaint_t blkcnt, const void *buffer);
 struct usb_device * usb_get_dev_index(int index);
 void uhci_show_temp_int_td(void);
 
@@ -186,7 +192,7 @@ block_dev_desc_t *usb_stor_get_dev(int index)
 }
 #endif
 
-void usb_show_progress(void)
+static void usb_show_progress(void)
 {
 	debug(".");
 }
@@ -238,7 +244,7 @@ int usb_stor_scan(int mode)
 	struct usb_device *dev;
 
 	if (mode == 1)
-		printf("       scanning bus for storage devices... ");
+		printf("       scanning usb for storage devices... ");
 
 	usb_disable_asynch(1); /* asynch transfer not allowed */
 
@@ -431,7 +437,7 @@ static int usb_stor_BBB_reset(struct us_data *us)
 	result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev, 0),
 				 US_BBB_RESET,
 				 USB_TYPE_CLASS | USB_RECIP_INTERFACE,
-				 0, us->ifnum, 0, 0, USB_CNTL_TIMEOUT * 5);
+				 0, us->ifnum, NULL, 0, USB_CNTL_TIMEOUT * 5);
 
 	if ((result < 0) && (us->pusb_dev->status & USB_ST_STALLED)) {
 		USB_STOR_PRINTF("RESET:stall\n");
@@ -494,7 +500,7 @@ static int usb_stor_CB_reset(struct us_data *us)
  * Set up the command for a BBB device. Note that the actual SCSI
  * command is copied into cbw.CBWCDB.
  */
-int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
+static int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
 {
 	int result;
 	int actlen;
@@ -542,7 +548,7 @@ int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
 /* FIXME: we also need a CBI_command which sets up the completion
  * interrupt, and waits for it
  */
-int usb_stor_CB_comdat(ccb *srb, struct us_data *us)
+static int usb_stor_CB_comdat(ccb *srb, struct us_data *us)
 {
 	int result = 0;
 	int dir_in, retry;
@@ -611,7 +617,7 @@ int usb_stor_CB_comdat(ccb *srb, struct us_data *us)
 }
 
 
-int usb_stor_CBI_get_status(ccb *srb, struct us_data *us)
+static int usb_stor_CBI_get_status(ccb *srb, struct us_data *us)
 {
 	int timeout;
 
@@ -620,7 +626,7 @@ int usb_stor_CBI_get_status(ccb *srb, struct us_data *us)
 			(void *) &us->ip_data, us->irqmaxp, us->irqinterval);
 	timeout = 1000;
 	while (timeout--) {
-		if ((volatile int *) us->ip_wanted == 0)
+		if ((volatile int *) us->ip_wanted == NULL)
 			break;
 		mdelay(10);
 	}
@@ -659,18 +665,18 @@ int usb_stor_CBI_get_status(ccb *srb, struct us_data *us)
 #define USB_TRANSPORT_NOT_READY_RETRY 10
 
 /* clear a stall on an endpoint - special for BBB devices */
-int usb_stor_BBB_clear_endpt_stall(struct us_data *us, __u8 endpt)
+static int usb_stor_BBB_clear_endpt_stall(struct us_data *us, __u8 endpt)
 {
 	int result;
 
 	/* ENDPOINT_HALT = 0, so set value to 0 */
 	result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev, 0),
 				USB_REQ_CLEAR_FEATURE, USB_RECIP_ENDPOINT,
-				0, endpt, 0, 0, USB_CNTL_TIMEOUT * 5);
+				0, endpt, NULL, 0, USB_CNTL_TIMEOUT * 5);
 	return result;
 }
 
-int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
+static int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
 {
 	int result, retry;
 	int dir_in;
@@ -693,7 +699,8 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
 		usb_stor_BBB_reset(us);
 		return USB_STOR_TRANSPORT_FAILED;
 	}
-	mdelay(5);
+	if (!(us->flags & USB_READY))
+		mdelay(5);
 	pipein = usb_rcvbulkpipe(us->pusb_dev, us->ep_in);
 	pipeout = usb_sndbulkpipe(us->pusb_dev, us->ep_out);
 	/* DATA phase + error handling */
@@ -791,7 +798,7 @@ again:
 	return result;
 }
 
-int usb_stor_CB_transport(ccb *srb, struct us_data *us)
+static int usb_stor_CB_transport(ccb *srb, struct us_data *us)
 {
 	int result, status;
 	ccb *psrb;
@@ -958,8 +965,10 @@ static int usb_test_unit_ready(ccb *srb, struct us_data *ss)
 		srb->cmd[1] = srb->lun << 5;
 		srb->datalen = 0;
 		srb->cmdlen = 12;
-		if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD)
+		if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD) {
+			ss->flags |= USB_READY;
 			return 0;
+		}
 		usb_request_sense(srb, ss);
 		mdelay(100);
 	} while (retries--);
@@ -1044,9 +1053,10 @@ static void usb_bin_fixup(struct usb_device_descriptor descriptor,
 #endif /* CONFIG_USB_BIN_FIXUP */
 
 unsigned long usb_stor_read(int device, unsigned long blknr,
-			    unsigned long blkcnt, void *buffer)
+			    lbaint_t blkcnt, void *buffer)
 {
-	unsigned long start, blks, buf_addr, max_xfer_blk;
+	lbaint_t start, blks;
+	uintptr_t buf_addr;
 	unsigned short smallblks;
 	struct usb_device *dev;
 	struct us_data *ss;
@@ -1074,28 +1084,20 @@ unsigned long usb_stor_read(int device, unsigned long blknr,
 	buf_addr = (unsigned long)buffer;
 	start = blknr;
 	blks = blkcnt;
-	if (usb_test_unit_ready(srb, ss)) {
-		printf("Device NOT ready\n   Request Sense returned %02X %02X"
-		       " %02X\n", srb->sense_buf[2], srb->sense_buf[12],
-		       srb->sense_buf[13]);
-		return 0;
-	}
 
-	USB_STOR_PRINTF("\nusb_read: dev %d startblk %lx, blccnt %lx"
+	USB_STOR_PRINTF("\nusb_read: dev %d startblk " LBAF ", blccnt " LBAF
 			" buffer %lx\n", device, start, blks, buf_addr);
 
 	do {
 		/* XXX need some comment here */
 		retry = 2;
 		srb->pdata = (unsigned char *)buf_addr;
-		max_xfer_blk = USB_MAX_XFER_BLK(buf_addr,
-						usb_dev_desc[device].blksz);
-		if (blks > max_xfer_blk)
-			smallblks = (unsigned short) max_xfer_blk;
+		if (blks > USB_MAX_XFER_BLK)
+			smallblks = USB_MAX_XFER_BLK;
 		else
 			smallblks = (unsigned short) blks;
 retry_it:
-		if (smallblks == max_xfer_blk)
+		if (smallblks == USB_MAX_XFER_BLK)
 			usb_show_progress();
 		srb->datalen = usb_dev_desc[device].blksz * smallblks;
 		srb->pdata = (unsigned char *)buf_addr;
@@ -1111,20 +1113,23 @@ retry_it:
 		blks -= smallblks;
 		buf_addr += srb->datalen;
 	} while (blks != 0);
+	ss->flags &= ~USB_READY;
 
-	USB_STOR_PRINTF("usb_read: end startblk %lx, blccnt %x buffer %lx\n",
+	USB_STOR_PRINTF("usb_read: end startblk " LBAF
+			", blccnt %x buffer %lx\n",
 			start, smallblks, buf_addr);
 
 	usb_disable_asynch(0); /* asynch transfer allowed */
-	if (blkcnt >= max_xfer_blk)
+	if (blkcnt >= USB_MAX_XFER_BLK)
 		debug("\n");
 	return blkcnt;
 }
 
 unsigned long usb_stor_write(int device, unsigned long blknr,
-				unsigned long blkcnt, const void *buffer)
+				lbaint_t blkcnt, const void *buffer)
 {
-	unsigned long start, blks, buf_addr, max_xfer_blk;
+	lbaint_t start, blks;
+	uintptr_t buf_addr;
 	unsigned short smallblks;
 	struct usb_device *dev;
 	struct us_data *ss;
@@ -1153,14 +1158,8 @@ unsigned long usb_stor_write(int device, unsigned long blknr,
 	buf_addr = (unsigned long)buffer;
 	start = blknr;
 	blks = blkcnt;
-	if (usb_test_unit_ready(srb, ss)) {
-		printf("Device NOT ready\n   Request Sense returned %02X %02X"
-		       " %02X\n", srb->sense_buf[2], srb->sense_buf[12],
-			srb->sense_buf[13]);
-		return 0;
-	}
 
-	USB_STOR_PRINTF("\nusb_write: dev %d startblk %lx, blccnt %lx"
+	USB_STOR_PRINTF("\nusb_write: dev %d startblk " LBAF ", blccnt " LBAF
 			" buffer %lx\n", device, start, blks, buf_addr);
 
 	do {
@@ -1169,14 +1168,12 @@ unsigned long usb_stor_write(int device, unsigned long blknr,
 		 */
 		retry = 2;
 		srb->pdata = (unsigned char *)buf_addr;
-		max_xfer_blk = USB_MAX_XFER_BLK(buf_addr,
-						usb_dev_desc[device].blksz);
-		if (blks > max_xfer_blk)
-			smallblks = (unsigned short) max_xfer_blk;
+		if (blks > USB_MAX_XFER_BLK)
+			smallblks = USB_MAX_XFER_BLK;
 		else
 			smallblks = (unsigned short) blks;
 retry_it:
-		if (smallblks == max_xfer_blk)
+		if (smallblks == USB_MAX_XFER_BLK)
 			usb_show_progress();
 		srb->datalen = usb_dev_desc[device].blksz * smallblks;
 		srb->pdata = (unsigned char *)buf_addr;
@@ -1192,12 +1189,14 @@ retry_it:
 		blks -= smallblks;
 		buf_addr += srb->datalen;
 	} while (blks != 0);
+	ss->flags &= ~USB_READY;
 
-	USB_STOR_PRINTF("usb_write: end startblk %lx, blccnt %x buffer %lx\n",
+	USB_STOR_PRINTF("usb_write: end startblk " LBAF
+			", blccnt %x buffer %lx\n",
 			start, smallblks, buf_addr);
 
 	usb_disable_asynch(0); /* asynch transfer allowed */
-	if (blkcnt >= max_xfer_blk)
+	if (blkcnt >= USB_MAX_XFER_BLK)
 		debug("\n");
 	return blkcnt;
 
@@ -1403,6 +1402,7 @@ int usb_stor_get_info(struct usb_device *dev, struct us_data *ss,
 		cap[0] = 2880;
 		cap[1] = 0x200;
 	}
+	ss->flags &= ~USB_READY;
 	USB_STOR_PRINTF("Read Capacity returns: 0x%lx, 0x%lx\n", cap[0],
 			cap[1]);
 #if 0

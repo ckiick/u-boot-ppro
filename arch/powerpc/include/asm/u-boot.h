@@ -63,6 +63,7 @@ typedef struct bd_info {
 	unsigned long   bi_vcofreq;     /* VCO Freq, in MHz */
 #endif
 	unsigned long	bi_bootflags;	/* boot / reboot flag (Unused) */
+	unsigned long	bi_ip_addr;	/* IP Address */
 	unsigned char	bi_enetaddr[6];	/* OLD: see README.enetaddr */
 	unsigned short	bi_ethspeed;	/* Ethernet speed in Mbps */
 	unsigned long	bi_intfreq;	/* Internal Freq, in MHz */
@@ -80,7 +81,7 @@ typedef struct bd_info {
 	unsigned long	bi_ipbfreq;	/* IPB Bus Freq, in MHz */
 	unsigned long	bi_pcifreq;	/* PCI Bus Freq, in MHz */
 #endif
-	unsigned long	bi_baudrate;	/* Console Baudrate */
+	unsigned int	bi_baudrate;	/* Console Baudrate */
 #if defined(CONFIG_405)   || \
     defined(CONFIG_405GP) || \
     defined(CONFIG_405CR) || \

@@ -217,8 +217,7 @@
 #endif
 
 #define CONFIG_FLASH_BR_PRELIM \
-		(BR_PHYS_ADDR((CONFIG_SYS_FLASH_BASE_PHYS + 0x8000000)) \
-		 | BR_PS_16 | BR_V)
+	(BR_PHYS_ADDR(CONFIG_SYS_FLASH_BASE_PHYS + 0x8000000) | BR_PS_16 | BR_V)
 #define CONFIG_FLASH_OR_PRELIM	0xf8000ff7
 
 #define CONFIG_SYS_BR1_PRELIM \
@@ -380,14 +379,14 @@
 #endif
 
 #define CONFIG_SYS_BR4_PRELIM \
-		(BR_PHYS_ADDR((CONFIG_SYS_NAND_BASE_PHYS + 0x40000)) \
+		(BR_PHYS_ADDR(CONFIG_SYS_NAND_BASE_PHYS + 0x40000) \
 		| (2<<BR_DECC_SHIFT)	/* Use HW ECC */ \
 		| BR_PS_8		/* Port Size = 8 bit */ \
 		| BR_MS_FCM		/* MSEL = FCM */ \
 		| BR_V)			/* valid */
 #define CONFIG_SYS_OR4_PRELIM	CONFIG_SYS_NAND_OR_PRELIM /* NAND Options */
 #define CONFIG_SYS_BR5_PRELIM \
-		(BR_PHYS_ADDR((CONFIG_SYS_NAND_BASE_PHYS + 0x80000)) \
+		(BR_PHYS_ADDR(CONFIG_SYS_NAND_BASE_PHYS + 0x80000) \
 		| (2<<BR_DECC_SHIFT)	/* Use HW ECC */ \
 		| BR_PS_8		/* Port Size = 8 bit */ \
 		| BR_MS_FCM		/* MSEL = FCM */ \
@@ -395,7 +394,7 @@
 #define CONFIG_SYS_OR5_PRELIM	CONFIG_SYS_NAND_OR_PRELIM /* NAND Options */
 
 #define CONFIG_SYS_BR6_PRELIM \
-		(BR_PHYS_ADDR((CONFIG_SYS_NAND_BASE_PHYS + 0xc0000)) \
+		(BR_PHYS_ADDR(CONFIG_SYS_NAND_BASE_PHYS + 0xc0000) \
 		| (2<<BR_DECC_SHIFT)	/* Use HW ECC */ \
 		| BR_PS_8		/* Port Size = 8 bit */ \
 		| BR_MS_FCM		/* MSEL = FCM */ \
@@ -797,21 +796,26 @@
 #define CONFIG_BAUDRATE	115200
 
 #define	CONFIG_EXTRA_ENV_SETTINGS				\
- "netdev=eth0\0"						\
- "uboot=" MK_STR(CONFIG_UBOOTPATH) "\0"				\
- "tftpflash=tftpboot $loadaddr $uboot; "			\
-	"protect off " MK_STR(CONFIG_SYS_TEXT_BASE) " +$filesize; "	\
-	"erase " MK_STR(CONFIG_SYS_TEXT_BASE) " +$filesize; "		\
-	"cp.b $loadaddr " MK_STR(CONFIG_SYS_TEXT_BASE) " $filesize; "	\
-	"protect on " MK_STR(CONFIG_SYS_TEXT_BASE) " +$filesize; "		\
-	"cmp.b $loadaddr " MK_STR(CONFIG_SYS_TEXT_BASE) " $filesize\0"	\
- "consoledev=ttyS0\0"				\
- "ramdiskaddr=2000000\0"			\
- "ramdiskfile=8536ds/ramdisk.uboot\0"		\
- "fdtaddr=c00000\0"				\
- "fdtfile=8536ds/mpc8536ds.dtb\0"		\
- "bdev=sda3\0"					\
- "hwconfig=usb1:dr_mode=host,phy_type=ulpi\0"
+"netdev=eth0\0"						\
+"uboot=" __stringify(CONFIG_UBOOTPATH) "\0"			\
+"tftpflash=tftpboot $loadaddr $uboot; "			\
+	"protect off " __stringify(CONFIG_SYS_TEXT_BASE)	\
+		" +$filesize; "	\
+	"erase " __stringify(CONFIG_SYS_TEXT_BASE)		\
+		" +$filesize; "	\
+	"cp.b $loadaddr " __stringify(CONFIG_SYS_TEXT_BASE)	\
+		" $filesize; "	\
+	"protect on " __stringify(CONFIG_SYS_TEXT_BASE)		\
+		" +$filesize; "	\
+	"cmp.b $loadaddr " __stringify(CONFIG_SYS_TEXT_BASE)	\
+		" $filesize\0"	\
+"consoledev=ttyS0\0"				\
+"ramdiskaddr=2000000\0"			\
+"ramdiskfile=8536ds/ramdisk.uboot\0"		\
+"fdtaddr=c00000\0"				\
+"fdtfile=8536ds/mpc8536ds.dtb\0"		\
+"bdev=sda3\0"					\
+"hwconfig=usb1:dr_mode=host,phy_type=ulpi\0"
 
 #define CONFIG_HDBOOT				\
  "setenv bootargs root=/dev/$bdev rw "		\

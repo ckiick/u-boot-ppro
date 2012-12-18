@@ -29,9 +29,6 @@ SOBJS	:= reset.o
 
 COBJS	:= timer.o
 COBJS	+= utils.o
-ifdef CONFIG_OMAP
-COBJS	+= gpio.o
-endif
 
 ifneq ($(CONFIG_OMAP44XX)$(CONFIG_OMAP54XX),)
 COBJS	+= hwinit-common.o
@@ -43,19 +40,6 @@ endif
 ifneq ($(CONFIG_AM33XX)$(CONFIG_OMAP44XX)$(CONFIG_OMAP54XX),)
 COBJS	+= boot-common.o
 SOBJS	+= lowlevel_init.o
-endif
-
-ifdef CONFIG_SPL_BUILD
-COBJS	+= spl.o
-ifdef CONFIG_SPL_NAND_SUPPORT
-COBJS	+= spl_nand.o
-endif
-ifdef CONFIG_SPL_MMC_SUPPORT
-COBJS	+= spl_mmc.o
-endif
-ifdef CONFIG_SPL_YMODEM_SUPPORT
-COBJS	+= spl_ymodem.o
-endif
 endif
 
 ifndef CONFIG_SPL_BUILD

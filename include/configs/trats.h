@@ -42,8 +42,10 @@
 #define CONFIG_DISPLAY_CPUINFO
 #define CONFIG_DISPLAY_BOARDINFO
 
-/* Keep L2 Cache Disabled */
-#define CONFIG_SYS_L2CACHE_OFF
+#ifndef CONFIG_SYS_L2CACHE_OFF
+#define CONFIG_SYS_L2_PL310
+#define CONFIG_SYS_PL310_BASE	0x10502000
+#endif
 
 #define CONFIG_SYS_SDRAM_BASE		0x40000000
 #define CONFIG_SYS_TEXT_BASE		0x63300000
@@ -67,7 +69,6 @@
 #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (1 << 20))
 
 /* select serial console configuration */
-#define CONFIG_SERIAL_MULTI
 #define CONFIG_SERIAL2			/* use SERIAL 2 */
 #define CONFIG_BAUDRATE			115200
 
@@ -76,6 +77,7 @@
 #define CONFIG_MMC
 #define CONFIG_S5P_SDHCI
 #define CONFIG_SDHCI
+#define CONFIG_MMC_SDMA
 
 /* PWM */
 #define CONFIG_PWM
@@ -95,6 +97,22 @@
 #undef CONFIG_CMD_ONENAND
 #undef CONFIG_CMD_MTDPARTS
 #define CONFIG_CMD_MMC
+#define CONFIG_CMD_DFU
+#define CONFIG_CMD_GPT
+
+/* FAT */
+#define CONFIG_CMD_FAT
+#define CONFIG_FAT_WRITE
+
+/* USB Composite download gadget - g_dnl */
+#define CONFIG_USBDOWNLOAD_GADGET
+#define CONFIG_DFU_FUNCTION
+#define CONFIG_DFU_MMC
+
+/* USB Samsung's IDs */
+#define CONFIG_G_DNL_VENDOR_NUM 0x04E8
+#define CONFIG_G_DNL_PRODUCT_NUM 0x6601
+#define CONFIG_G_DNL_MANUFACTURER "Samsung"
 
 #define CONFIG_BOOTDELAY		1
 #define CONFIG_ZERO_BOOTDELAY_CHECK
@@ -104,6 +122,31 @@
 #define CONFIG_DEFAULT_CONSOLE		"console=ttySAC2,115200n8\0"
 #define CONFIG_BOOTBLOCK		"10"
 #define CONFIG_ENV_COMMON_BOOT		"${console} ${meminfo}"
+
+/* Tizen - partitions definitions */
+#define PARTS_CSA		"csa-mmc"
+#define PARTS_BOOTLOADER	"u-boot"
+#define PARTS_BOOT		"boot"
+#define PARTS_ROOT		"platform"
+#define PARTS_DATA		"data"
+#define PARTS_CSC		"csc"
+#define PARTS_UMS		"ums"
+
+#define PARTS_DEFAULT \
+	"uuid_disk=${uuid_gpt_disk};" \
+	"name="PARTS_CSA",size=8MiB,uuid=${uuid_gpt_"PARTS_CSA"};" \
+	"name="PARTS_BOOTLOADER",size=60MiB," \
+		"uuid=${uuid_gpt_"PARTS_BOOTLOADER"};" \
+	"name="PARTS_BOOT",size=100MiB,uuid=${uuid_gpt_"PARTS_BOOT"};" \
+	"name="PARTS_ROOT",size=1GiB,uuid=${uuid_gpt_"PARTS_ROOT"};" \
+	"name="PARTS_DATA",size=3GiB,uuid=${uuid_gpt_"PARTS_DATA"};" \
+	"name="PARTS_CSC",size=150MiB,uuid=${uuid_gpt_"PARTS_CSC"};" \
+	"name="PARTS_UMS",size=-,uuid=${uuid_gpt_"PARTS_UMS"}\0" \
+
+#define CONFIG_DFU_ALT \
+	"dfu_alt_info=" \
+	"u-boot mmc 80 400;" \
+	"uImage fat 0 2\0" \
 
 #define CONFIG_ENV_OVERWRITE
 #define CONFIG_SYS_CONSOLE_INFO_QUIET
@@ -144,10 +187,13 @@
 	"meminfo=crashkernel=32M@0x50000000\0" \
 	"nfsroot=/nfsroot/arm\0" \
 	"bootblock=" CONFIG_BOOTBLOCK "\0" \
+	"loaduimage=fatload mmc ${mmcdev}:${mmcbootpart} 0x40007FC0 uImage\0" \
 	"mmcdev=0\0" \
 	"mmcbootpart=2\0" \
 	"mmcrootpart=3\0" \
-	"opts=always_resume=1"
+	"opts=always_resume=1\0" \
+	"partitions=" PARTS_DEFAULT \
+	CONFIG_DFU_ALT \
 
 /* Miscellaneous configurable options */
 #define CONFIG_SYS_LONGHELP		/* undef to save memory */
@@ -164,9 +210,6 @@
 #define CONFIG_SYS_LOAD_ADDR		(CONFIG_SYS_SDRAM_BASE + 0x4800000)
 
 #define CONFIG_SYS_HZ			1000
-
-/* Stack sizes */
-#define CONFIG_STACKSIZE		(256 << 10) /* regular stack 256KB */
 
 /* TRATS has 2 banks of DRAM */
 #define CONFIG_NR_DRAM_BANKS	2
@@ -187,29 +230,50 @@
 
 #define CONFIG_DOS_PARTITION
 
+/* GPT */
+#define CONFIG_EFI_PARTITION
+#define CONFIG_PARTITION_UUIDS
+
 #define CONFIG_SYS_INIT_SP_ADDR	(CONFIG_SYS_LOAD_ADDR - GENERATED_GBL_DATA_SIZE)
 #define CONFIG_SYS_CACHELINE_SIZE       32
 
-#include <asm/arch/gpio.h>
-/*
- * I2C Settings
- */
-#define CONFIG_SOFT_I2C_GPIO_SCL exynos4_gpio_part1_get_nr(b, 7)
-#define CONFIG_SOFT_I2C_GPIO_SDA exynos4_gpio_part1_get_nr(b, 6)
 
 #define CONFIG_SOFT_I2C
 #define CONFIG_SOFT_I2C_READ_REPEATED_START
+#define CONFIG_SYS_I2C_INIT_BOARD
 #define CONFIG_SYS_I2C_SPEED	50000
 #define CONFIG_I2C_MULTI_BUS
-#define CONFIG_SYS_MAX_I2C_BUS	7
+#define CONFIG_SOFT_I2C_MULTI_BUS
+#define CONFIG_SYS_MAX_I2C_BUS	15
 
-#define CONFIG_PMIC
-#define CONFIG_PMIC_I2C
-#define CONFIG_PMIC_MAX8997
+#include <asm/arch/gpio.h>
 
+/* I2C PMIC */
+#define CONFIG_SOFT_I2C_I2C5_SCL exynos4_gpio_part1_get_nr(b, 7)
+#define CONFIG_SOFT_I2C_I2C5_SDA exynos4_gpio_part1_get_nr(b, 6)
+
+/* I2C FG */
+#define CONFIG_SOFT_I2C_I2C9_SCL exynos4_gpio_part2_get_nr(y4, 1)
+#define CONFIG_SOFT_I2C_I2C9_SDA exynos4_gpio_part2_get_nr(y4, 0)
+
+#define CONFIG_SOFT_I2C_GPIO_SCL get_multi_scl_pin()
+#define CONFIG_SOFT_I2C_GPIO_SDA get_multi_sda_pin()
+#define I2C_INIT multi_i2c_init()
+
+#define CONFIG_POWER
+#define CONFIG_POWER_I2C
+#define CONFIG_POWER_MAX8997
+
+#define CONFIG_POWER_FG
+#define CONFIG_POWER_FG_MAX17042
+#define CONFIG_POWER_MUIC
+#define CONFIG_POWER_MUIC_MAX8997
+#define CONFIG_POWER_BATTERY
+#define CONFIG_POWER_BATTERY_TRATS
 #define CONFIG_USB_GADGET
 #define CONFIG_USB_GADGET_S3C_UDC_OTG
 #define CONFIG_USB_GADGET_DUALSPEED
+#define CONFIG_USB_GADGET_VBUS_DRAW	2
 
 /* LCD */
 #define CONFIG_EXYNOS_FB

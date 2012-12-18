@@ -63,7 +63,6 @@
 #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + (1 << 20))
 
 /* select serial console configuration */
-#define CONFIG_SERIAL_MULTI		1
 #define CONFIG_SERIAL2			1	/* use SERIAL 2 */
 #define CONFIG_BAUDRATE			115200
 #define EXYNOS4_DEFAULT_UART_OFFSET	0x020000
@@ -116,9 +115,6 @@
 
 #define CONFIG_SYS_HZ			1000
 
-/* Stack sizes */
-#define CONFIG_STACKSIZE		(256 << 10)	/* 256KB */
-
 /* ORIGEN has 4 bank of DRAM */
 #define CONFIG_NR_DRAM_BANKS	4
 #define SDRAM_BANK_SIZE		(256UL << 20UL)	/* 256 MB */
@@ -135,11 +131,6 @@
 #define CONFIG_SYS_NO_FLASH		1
 #undef CONFIG_CMD_IMLS
 #define CONFIG_IDENT_STRING		" for ORIGEN"
-
-#ifdef CONFIG_USE_IRQ
-#define CONFIG_STACKSIZE_IRQ		(4*1024)	/* IRQ stack */
-#define CONFIG_STACKSIZE_FIQ		(4*1024)	/* FIQ stack */
-#endif
 
 #define CONFIG_CLK_1000_400_200
 
