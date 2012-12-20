@@ -1,46 +1,24 @@
-#include <common.h>
-#include <asm/arch-oxnas820/regs.h>
-#include <asm/io.h>
+/*
+ * modified for u-boot 2012.07 by Chris J. Kiick.
+ * Cleaned up init code. Pulled in ecc code. Moved to HW ECC mode.
+ * Removed dead code.  Some parts copied from nand_plat.c and modified.
+ */
 
-/* modified for u-boot 2012.07. Cleaned up init code. Pulled in ecc code. */
+#include <common.h>
 
 #ifdef CONFIG_CMD_NAND
-#include <linux/mtd/nand.h>
-
-#if 0
-static void nand_hwcontrol(struct mtd_info *mtdinfo, int cmd, unsigned int ctrl)
-{
-	struct nand_chip *this = mtdinfo->priv;
-	u32 nand_baseaddr = (u32) CONFIG_SYS_NAND_BASE;
-
-    if(ctrl & NAND_CTRL_CHANGE)
-    {
-        if(ctrl & NAND_CLE)
-        {
-			nand_baseaddr = CONFIG_SYS_NAND_COMMAND_LATCH;
-        }
-        if(ctrl & NAND_ALE)
-        {
-			nand_baseaddr = CONFIG_SYS_NAND_ADDRESS_LATCH;
-        }
-    }
-	this->IO_ADDR_W = (void __iomem *)(nand_baseaddr);
-}
-
-static int nand_dev_ready(struct mtd_info *mtdinfo)
-{
-	return 1;
-}
-
-/*
-extern struct nand_chip nand_dev_desc[CFG_MAX_NAND_DEVICE];
-*/
-
-#endif
+#include <asm/arch-oxnas820/regs.h>
+#include <asm/io.h>
+#include <nand.h>
 
 static int nand_calculate_ecc_rs(struct mtd_info *mtd, const u_char *data, u_char *ecc_code);
 static int nand_correct_data_rs(struct mtd_info *mtd, u_char *data, u_char *store_ecc, u_char *calc_ecc);
 
+/*
+ * The ECC algorithm uses a 10-byte code for every 512 bytes in NAND.
+ * The codes are aggregated per write page (2K) so 40 bytes at the end
+ * of the OOB area are used.
+ */
 static struct nand_ecclayout oxnas_nand_ecc_layout = {
 	.eccbytes = 40,
 	.eccpos = {
@@ -53,12 +31,26 @@ static struct nand_ecclayout oxnas_nand_ecc_layout = {
 	.oobfree = { {2, 22} },
 };
 
-void oxnas_nand_plat_init(void *chip)
+static void oxnas_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
+{
+	if (cmd == NAND_CMD_NONE)
+		return;
+
+	if (ctrl & NAND_CLE)
+                *((volatile u8 *)(CONFIG_SYS_NAND_COMMAND_LATCH)) = cmd;
+	else
+		*((volatile u8 *)(CONFIG_SYS_NAND_ADDRESS_LATCH)) = cmd;
+}
+
+static void oxnas_nand_hwctl(struct mtd_info *mtd, int mode)
+{
+}
+
+int board_nand_init(struct nand_chip *nand)
 {
 #if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 	extern int nand_ecc_off;
 #endif
-	struct nand_chip *nand = (struct nand_chip *)chip;
 
 	/* enable clock and release static block reset */
 	writel((1<<SYS_CTRL_CKEN_STATIC_BIT), SYS_CTRL_CKEN_SET_CTRL);
@@ -71,6 +63,8 @@ void oxnas_nand_plat_init(void *chip)
 	nand->chip_delay = 100;
 
 	/* setup our own ECC stuff. */
+	nand->ecc.mode = NAND_ECC_HW;
+	nand->ecc.hwctl = oxnas_nand_hwctl;	/* cannot be null */
 	nand->ecc.steps	= 4;	// ecc steps / page
 	nand->ecc.bytes = 10;	// ecc bytes / step
 	nand->ecc.size	= 512;	// data bytes / ecc step
@@ -82,9 +76,16 @@ void oxnas_nand_plat_init(void *chip)
 #if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
 	nand_ecc_off = 1;
 #endif
+
+	nand->cmd_ctrl = oxnas_cmd_ctrl;
+	nand->dev_ready = NULL;
+
+	return 0;
 }
 
 /*
+ * The comments below are not correct. Believe the code. - CJK
+ *
  * This code contains an ECC algorithm from Toshiba that detects and
  * corrects 1 bit errors in a 256 byte block of data.
  *
@@ -120,7 +121,6 @@ void oxnas_nand_plat_init(void *chip)
  * This exception does not invalidate any other reasons why a work based on
  * this code might be covered by the GNU General Public License.
  */
-
 
 #define mm 10	  /* RS code over GF(2**mm) - the size in bits of a symbol*/
 #define	nn 1023   /* nn=2^mm -1   length of codeword */
@@ -200,7 +200,6 @@ static void generate_gf(void)
 	alpha_to[nn] = 0;
 }
 
-
 /*
  * Obtain the generator polynomial of the tt-error correcting, 
  * length nn = (2^mm -1) 
@@ -229,7 +228,6 @@ static void gen_poly(void)
 	for (i = 0; i <= nn - kk; i++)
 		Gg[i] = index_of[Gg[i]];
 }
-
 
 /*
  * take the string of symbols in data[i], i=0..(k-1) and encode
@@ -265,9 +263,6 @@ static char encode_rs(dtype data[kk], dtype bb[nn-kk])
 	return 0;
 }
 
-
-
-
 /* assume we have received bits grouped into mm-bit symbols in data[i],
    i=0..(nn-1), We first compute the 2*tt syndromes, then we use the 
    Berlekamp iteration to find the error location polynomial  elp[i].   
@@ -287,12 +282,10 @@ static int decode_rs(dtype data[nn])
 	tgf q,tmp,num1,num2,den,discr_r;
 	tgf recd[nn];
 	tgf lambda[nn-kk + 1], s[nn-kk + 1];	/* Err+Eras Locator poly
-						                 * and syndrome poly  */
+				                 * and syndrome poly  */
 	tgf b[nn-kk + 1], t[nn-kk + 1], omega[nn-kk + 1];
 	tgf root[nn-kk], reg[nn-kk + 1], loc[nn-kk];
 	int syn_error, count;
-
-	
 
 	/* data[] is in polynomial form, copy and convert to index form */
 	for (i = nn-1; i >= 0; i--){
@@ -314,9 +307,9 @@ static int decode_rs(dtype data[nn])
 		
 		for (j = 0; j < nn; j++)
 			if (recd[j] != nn)	/* recd[j] in index form */
-								tmp ^= alpha_to[(recd[j] + (1+i-1)*j)%nn];
+				tmp ^= alpha_to[(recd[j] + (1+i-1)*j)%nn];
 		
-			syn_error |= tmp;	/* set flag if non-zero syndrome =>
+		syn_error |= tmp;	/* set flag if non-zero syndrome =>
 					 * error */
 	/* store syndrome in index form  */
 		s[i] = index_of[tmp];
@@ -424,9 +417,7 @@ static int decode_rs(dtype data[nn])
 	printf("\n");
 */
 #endif
-	
-	
-	
+
 	if (deg_lambda != count) {
 		/*
 		 * deg(lambda) unequal to number of roots => uncorrectable
@@ -453,9 +444,6 @@ static int decode_rs(dtype data[nn])
 		omega[i] = index_of[tmp];
 	}
 	omega[nn-kk] = nn;
-
-
-
 
 	/*
 	 * Compute error values in poly-form. num1 = omega(inv(X(l))), num2 =
@@ -608,7 +596,7 @@ correct:
 		for (i=0; i<512; i++)
 			data[i] = (unsigned char) rsdata[i];
 
-	return 0;
+	return ret;
 }
 
-#endif
+#endif /* CONFIG_CMD_NAND */

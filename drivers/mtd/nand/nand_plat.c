@@ -53,7 +53,7 @@ int board_nand_init(struct nand_chip *nand)
 #endif
 
 #ifdef NAND_PLAT_INIT
-	NAND_PLAT_INIT(nand);
+	NAND_PLAT_INIT();
 #endif
 
 	nand->cmd_ctrl = plat_cmd_ctrl;

@@ -3048,10 +3048,8 @@ int nand_scan_tail(struct mtd_info *mtd)
 		chip->ecc.mode = NAND_ECC_SOFT;
 
 	case NAND_ECC_SOFT:
-		if (!chip->ecc.calculate)
-			chip->ecc.calculate = nand_calculate_ecc;
-		if (!chip->ecc.correct)
-			chip->ecc.correct = nand_correct_data;
+		chip->ecc.calculate = nand_calculate_ecc;
+		chip->ecc.correct = nand_correct_data;
 		chip->ecc.read_page = nand_read_page_swecc;
 		chip->ecc.read_subpage = nand_read_subpage;
 		chip->ecc.write_page = nand_write_page_swecc;
@@ -3059,10 +3057,9 @@ int nand_scan_tail(struct mtd_info *mtd)
 		chip->ecc.write_page_raw = nand_write_page_raw;
 		chip->ecc.read_oob = nand_read_oob_std;
 		chip->ecc.write_oob = nand_write_oob_std;
-		if (!chip->ecc.size) {
+		if (!chip->ecc.size)
 			chip->ecc.size = 256;
-			chip->ecc.bytes = 3;
-		}
+		chip->ecc.bytes = 3;
 		break;
 
 	case NAND_ECC_SOFT_BCH:

@@ -179,23 +179,7 @@
 #define CONFIG_SYS_NAND_BASE 0x41000000
 #define	CONFIG_SYS_NAND_ADDRESS_LATCH	(CONFIG_SYS_NAND_BASE + (1<<18))
 #define	CONFIG_SYS_NAND_COMMAND_LATCH	(CONFIG_SYS_NAND_BASE + (1<<19))
-/* try using the generic nand_plat driver. */
-#define CONFIG_NAND_PLAT
-#ifndef __ASSEMBLY__
-extern void oxnas_nand_plat_init(void *chip);
 #endif
-#define NAND_PLAT_INIT(nand)	oxnas_nand_plat_init(nand)
-
-#define NAND_PLAT_WRITE_CMD(this, cmd)	\
-	do { \
-		*((volatile u8 *)(CONFIG_SYS_NAND_COMMAND_LATCH)) = cmd; \
-	} while (0)
-
-#define NAND_PLAT_WRITE_ADR(this, cmd)	\
-	do { \
-		*((volatile u8 *)(CONFIG_SYS_NAND_ADDRESS_LATCH)) = cmd; \
-	} while (0)
-#endif	/* OXNAS_USE_NAND */
 
 /* don't know if we need or want these */
 //#define CONFIG_MTD_DEVICE
