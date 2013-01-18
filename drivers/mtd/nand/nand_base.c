@@ -1031,6 +1031,11 @@ static int nand_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
 	}
 	chip->read_buf(mtd, chip->oob_poi, mtd->oobsize);
 
+#if defined(CONFIG_CMD_NAND_ECC) || defined(CONFIG_SYS_NAND_ENV_ECC_ON)
+	if (nand_ecc_off)
+		return 0;
+#endif
+
 	for (i = 0; i < chip->ecc.total; i++)
 		ecc_code[i] = chip->oob_poi[eccpos[i]];
 
